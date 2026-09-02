@@ -11,7 +11,10 @@ import argparse
 import json
 import sys
 
-from profile_store import list_profiles
+try:  # Supports both `python backend/layoutctl.py` and `python -m backend.layoutctl`.
+    from .profile_store import list_profiles
+except ImportError:  # pragma: no cover - exercised by the installed script entry point.
+    from profile_store import list_profiles
 
 
 def parse_arguments(arguments: list[str]) -> argparse.Namespace:
