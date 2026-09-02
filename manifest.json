@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "santiago.workspace-layout-presets",
+  "name": "Workspace Layout Presets",
+  "version": "0.1.0",
+  "author": "Santiago",
+  "license": "MIT",
+  "description": "Save and safely restore one empty Omarchy workspace layout at a time.",
+  "kinds": ["bar-widget"],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Workspace Layouts",
+    "description": "Save and restore named Dwindle workspace layouts.",
+    "category": "Productivity",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}
