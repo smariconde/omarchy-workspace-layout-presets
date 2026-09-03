@@ -298,6 +298,15 @@ def write_profile(profile_id: str, profile: Mapping[str, Any], environment: Mapp
     return _write_json_atomic(profile_path(profile_id, environment), profile, create_parent=True)
 
 
+def create_profile(profile_id: str, profile: Mapping[str, Any], environment: Mapping[str, str] | None = None) -> Path:
+    """Create a new profile without replacing an existing one.
+
+    Capture uses this path because saving a new named preset must not silently
+    replace a previous profile that happens to have the same derived ID.
+    """
+    return _write_json_atomic(profile_path(profile_id, environment), profile, create_parent=True, overwrite=False)
+
+
 def _sync_directory(directory: Path) -> None:
     """Persist the rename where the platform supports directory fsync."""
     try:

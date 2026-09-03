@@ -111,6 +111,29 @@ destino ya existe responden `blocked` con `already_exists`. Import deriva el
 ID del nombre base seguro del archivo elegido por la persona usuaria y bloquea
 cualquier colisión.
 
+### Captura segura (M2)
+
+`capture.py` concentra las cuatro consultas de sólo lectura a Hyprland,
+siempre mediante arrays fijos: `activeworkspace`, `clients`, `monitors` y
+`getoption general:layout`. Su adaptador es inyectable para que las fixtures
+anonimizadas cubran la transformación sin una sesión gráfica. La captura exige
+un workspace regular activo, su único monitor asociado y el layout `dwindle`.
+
+Sólo conserva el nombre del workspace, el conector y rectángulo útil del
+monitor, clase de ventana, estado tiled/floating y geometría floating
+normalizada. No conserva títulos, direcciones de ventana, PID ni otros campos
+presentes en `hyprctl`. El descriptor de lanzamiento se resuelve únicamente a
+un identificador de un `.desktop` de tipo `Application` con `Exec`; `Exec`
+nunca se guarda ni se ejecuta en esta etapa. La falta de un descriptor y las
+instancias repetidas son advertencias explícitas.
+
+Mientras M3 no infiera el árbol, la captura escribe un perfil V1 válido con
+`layoutConfidence: "fallback"`, orden estable de ventanas y una advertencia.
+Un estado fullscreen, un layout no soportado, datos geométricos inválidos o
+más de diez ventanas de cada tipo bloquean la captura antes de escribir. El ID
+opaco se deriva del nombre visible normalizado a minúsculas ASCII y la creación
+no sobrescribe un perfil existente.
+
 ### Integración QML → backend (M0.2)
 
 En Omarchy 4.x con Quickshell 0.3.1, `qml/LayoutctlClient.qml` usa

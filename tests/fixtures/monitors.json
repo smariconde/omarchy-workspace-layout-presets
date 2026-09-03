@@ -1,0 +1,11 @@
+[
+  {
+    "name": "HDMI-A-2",
+    "x": 0,
+    "y": 0,
+    "width": 1920,
+    "height": 1080,
+    "reserved": [24, 32, 0, 0],
+    "activeWorkspace": {"id": 3, "name": "3"}
+  }
+]

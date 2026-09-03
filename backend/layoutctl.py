@@ -26,6 +26,7 @@ try:  # Supports both `python backend/layoutctl.py` and `python -m backend.layou
         read_profile,
         rename_profile,
     )
+    from .capture import CaptureError, capture_current_workspace
 except ImportError:  # pragma: no cover - exercised by the installed script entry point.
     from profile_store import (  # type: ignore[no-redef]
         ProfileAlreadyExistsError,
@@ -38,6 +39,7 @@ except ImportError:  # pragma: no cover - exercised by the installed script entr
         read_profile,
         rename_profile,
     )
+    from capture import CaptureError, capture_current_workspace  # type: ignore[no-redef]
 
 
 CONTRACT_VERSION = 1
@@ -143,13 +145,24 @@ def result_unimplemented(command: str) -> dict[str, Any]:
 
 
 def execute(
-    arguments: list[str], profile_lister: Callable[[], list[str]] = list_profiles
+    arguments: list[str],
+    profile_lister: Callable[[], list[str]] = list_profiles,
+    capture_workspace: Callable[[str], tuple[str, dict[str, Any]]] = capture_current_workspace,
 ) -> tuple[int, dict[str, Any]]:
     """Execute one command and return its exit code plus JSON-safe response data."""
     try:
         args = parse_arguments(arguments)
     except ArgumentError as error:
         return EXIT_INVALID_ARGUMENTS, result_error("invalid_arguments", str(error))
+
+    if args.command == "capture":
+        try:
+            profile_id, profile = capture_workspace(args.name)
+            return EXIT_OK, result_ok({"profileId": profile_id, "profile": profile}, warnings=profile["warnings"])
+        except CaptureError as error:
+            return EXIT_ERROR, result_error("capture_error", str(error))
+        except ProfileAlreadyExistsError as error:
+            return EXIT_ERROR, result_blocked([{"code": "already_exists", "message": str(error)}])
 
     if args.command == "profile" and args.profile_action == "list":
         try:

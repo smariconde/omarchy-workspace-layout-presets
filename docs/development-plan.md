@@ -1,6 +1,6 @@
 # Hoja de ruta de desarrollo
 
-**Estado:** M1 completado · próxima sesión: M2
+**Estado:** M2 completado · próxima sesión: M3
 **Objetivo:** una primera beta de perfiles de layout para un workspace
 `dwindle` en Omarchy 4.x.
 
@@ -23,7 +23,8 @@ contrato, registrarla primero en la arquitectura; no esconderla en código.
 | Manifiesto y puntos de entrada | Hecho | `manifest.json`, QML inerte |
 | Almacenamiento de perfiles | Hecho | esquema V1 profundo, operaciones atómicas y sin sobrescritura |
 | CLI | Hecho para perfiles | list/show/rename/duplicate/delete/export/import con JSON estable |
-| Captura, inferencia y lanzadores | Pendiente | módulos reservados |
+| Captura y lanzadores | Hecho | fixtures anonimizadas, adaptador `hyprctl` de sólo lectura y resolución `.desktop` |
+| Inferencia Dwindle | Pendiente | módulo reservado |
 | Planificación y restauración | Pendiente | módulo reservado |
 | Interfaz | Pendiente | componentes reservados |
 | Validación en Omarchy | Pendiente | aún no ejecutada |
@@ -36,7 +37,7 @@ La suite actual se ejecuta con `python -m unittest discover -v`.
 | --- | --- | --- | --- | --- |
 | M0 | Contrato CLI y puente QML → backend | — | El comando puede llamarse con argumentos separados y devuelve resultados JSON que la UI puede consumir | Hecho |
 | M1 | Perfiles completos | M0 | Validación profunda y operaciones show/rename/duplicate/delete/export/import cubiertas por tests | Hecho |
-| M2 | Captura segura | M1 | Fixtures de Hyprland → perfil válido, sin datos sensibles ni comandos de shell | Pendiente |
+| M2 | Captura segura | M1 | Fixtures de Hyprland → perfil válido, sin datos sensibles ni comandos de shell | Hecho |
 | M3 | Inferencia Dwindle | M2 | Árbol exacto para geometrías soportadas; `fallback` explícito para las demás | Pendiente |
 | M4 | Plan de restauración | M1–M3 | `plan` es de sólo lectura y bloquea invariablemente workspaces no vacíos | Pendiente |
 | M5 | Restauración controlada | M4 | Ejecuta sólo un plan aprobado, verifica el resultado y nunca cierra ventanas | Pendiente |
@@ -88,14 +89,32 @@ y están cubiertas por pruebas de almacenamiento y CLI.
 **Evidencia:** `backend/profile_store.py`, `backend/layoutctl.py`,
 `tests/test_profile_store.py`, `tests/test_layoutctl.py`.
 
+### M2 — Captura segura — Hecho
+
+- Consultar exclusivamente JSON de `hyprctl` para workspace activo, clientes,
+  monitores y layout activo mediante un adaptador simulable.
+- Conservar sólo los campos permitidos por el perfil V1 y normalizar la
+  geometría floating al rectángulo útil del monitor.
+- Resolver launchers sólo a IDs de `.desktop`; informar instancias repetidas,
+  launchers no resolubles y fallback de árbol sin ejecutar nada.
+- Bloquear antes de escribir ante workspace/layout/monitor inválidos,
+  fullscreen no representable, geometría inválida, límites excedidos o una
+  colisión de ID de perfil.
+
+**Cierre:** fixtures de Hyprland generan un perfil validado, atómico y sin
+datos sensibles; `layoutctl capture <name>` mantiene el sobre JSON.
+
+**Evidencia:** `backend/capture.py`, `backend/launchers.py`,
+`tests/test_capture.py`, `tests/test_launchers.py`.
+
 ## Secuencia posterior
 
-1. M2: capturar workspace, monitor, clientes y lanzadores desde fixtures.
-2. M3: inferir Dwindle y conectar su fallback a captura.
-3. M4: producir y aprobar planes de sólo lectura.
-4. M5: restaurar tiled, floating y fullscreen permitido, con verificación.
-5. M6: construir la UI sólo sobre las operaciones ya probadas.
-6. M7: endurecer, probar en máquinas reales y publicar la beta.
+1. M3: inferir Dwindle y reemplazar el árbol fallback cuando la geometría sea
+   representable.
+2. M4: producir y aprobar planes de sólo lectura.
+3. M5: restaurar tiled, floating y fullscreen permitido, con verificación.
+4. M6: construir la UI sólo sobre las operaciones ya probadas.
+5. M7: endurecer, probar en máquinas reales y publicar la beta.
 
 ## Cierre de cada sesión
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import socket
 import subprocess
 import tempfile
 import unittest
@@ -13,7 +14,23 @@ REPOSITORY = Path(__file__).resolve().parent.parent
 PROBE = REPOSITORY / "qml_process_probe.qml"
 
 
-@unittest.skipUnless(shutil.which("qs"), "requires Quickshell's qs executable")
+def has_wayland_socket() -> bool:
+    """Avoid launching Qt when this test process has no usable GUI session."""
+    runtime_directory = os.environ.get("XDG_RUNTIME_DIR")
+    display = os.environ.get("WAYLAND_DISPLAY")
+    socket_path = Path(runtime_directory) / display if runtime_directory and display else None
+    if socket_path is None or not socket_path.exists():
+        return False
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+            connection.settimeout(0.2)
+            connection.connect(str(socket_path))
+    except OSError:
+        return False
+    return True
+
+
+@unittest.skipUnless(shutil.which("qs") and has_wayland_socket(), "requires Quickshell and a live Wayland socket")
 class QmlProcessProbeTests(unittest.TestCase):
     def test_profile_list_uses_argv_and_returns_json_to_qml(self) -> None:
         with tempfile.TemporaryDirectory() as data_home:

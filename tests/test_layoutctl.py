@@ -28,17 +28,24 @@ class LayoutctlContractTests(unittest.TestCase):
             },
         )
 
-    def test_future_desktop_commands_are_not_silently_accepted(self) -> None:
-        for arguments in (
-            ["capture", "Coding"],
-            ["plan", "coding"],
-            ["restore", "plan-v1-example"],
-        ):
+    def test_unimplemented_desktop_commands_are_not_silently_accepted(self) -> None:
+        for arguments in (["plan", "coding"], ["restore", "plan-v1-example"]):
             with self.subTest(arguments=arguments):
                 exit_code, response = layoutctl.execute(arguments)
                 self.assertEqual(exit_code, layoutctl.EXIT_UNIMPLEMENTED)
                 self.assertEqual(response["status"], "error")
                 self.assertEqual(response["error"]["code"], "unimplemented")
+
+    def test_capture_returns_a_profile_and_its_read_only_warnings(self) -> None:
+        profile = {"schemaVersion": 1, "name": "Coding", "warnings": [{"code": "layout_fallback", "message": "pending"}]}
+
+        exit_code, response = layoutctl.execute(
+            ["capture", "Coding"], capture_workspace=lambda name: ("coding", profile)
+        )
+
+        self.assertEqual(exit_code, layoutctl.EXIT_OK)
+        self.assertEqual(response["data"], {"profileId": "coding", "profile": profile})
+        self.assertEqual(response["warnings"], profile["warnings"])
 
     def test_profile_management_commands_return_json_data(self) -> None:
         profile = {"schemaVersion": 1, "name": "Coding"}

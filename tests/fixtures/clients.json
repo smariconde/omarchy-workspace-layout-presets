@@ -1,0 +1,26 @@
+[
+  {
+    "workspace": {"id": 3, "name": "3"},
+    "class": "Code",
+    "floating": false,
+    "fullscreen": 0,
+    "at": [0, 24],
+    "size": [1200, 1024]
+  },
+  {
+    "workspace": {"id": 3, "name": "3"},
+    "class": "kitty",
+    "floating": true,
+    "fullscreen": 0,
+    "at": [120, 124],
+    "size": [600, 400]
+  },
+  {
+    "workspace": {"id": 4, "name": "4"},
+    "class": "Firefox",
+    "floating": false,
+    "fullscreen": 0,
+    "at": [0, 24],
+    "size": [1920, 1024]
+  }
+]
