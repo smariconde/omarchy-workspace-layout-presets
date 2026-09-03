@@ -44,12 +44,8 @@ profile list|show|rename|duplicate|delete|export|import
 The restore command is deliberately separate from planning so the UI can show
 launch, skip, warning, and blocked entries before a state-changing action.
 
-## Delivery sequence
+## Desarrollo
 
-1. Foundation: manifest, no-op widget, paths, fixture test harness.
-2. Capture and profile management: validated JSON, safe launcher resolution,
-   export/import and confirmation-protected deletion.
-3. Restore: empty-workspace guard, Dwindle replay, floating-window clamping,
-   final verification and partial-success reporting.
-4. Hardening: target-machine compatibility matrix, dispatch audit, release
-   notes and a reviewed tag.
+La secuencia, estado y criterios de salida viven en
+[`development-plan.md`](development-plan.md). Esta arquitectura conserva sólo
+los límites entre componentes y los contratos que deben mantenerse estables.

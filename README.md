@@ -34,7 +34,9 @@ omarchy plugin validate .
 This repository does not install, enable, or copy the plugin into an Omarchy
 configuration directory.
 
-## Planned layout
+## Documentación
 
-See [docs/architecture.md](docs/architecture.md) for component ownership and
-the delivery sequence.
+- [Especificación](spec.md): alcance, requisitos y límites de seguridad.
+- [Arquitectura](docs/architecture.md): componentes y contratos.
+- [Hoja de ruta](docs/development-plan.md): estado, hitos y próxima sesión.
+- [Guía para agentes](AGENTS.md): reglas de contribución y trabajo seguro.
