@@ -50,8 +50,8 @@ class CaptureTests(unittest.TestCase):
         self.assertNotIn("Firefox", serialized)
         self.assertNotIn("pid", serialized)
         self.assertNotIn("title", serialized)
-        self.assertEqual(profile["layoutConfidence"], "fallback")
-        self.assertEqual(profile["warnings"][0]["code"], "layout_fallback")
+        self.assertEqual(profile["layoutConfidence"], "exact")
+        self.assertNotIn("layout_fallback", [warning["code"] for warning in profile["warnings"]])
 
     def test_capture_writes_a_new_profile_once_and_never_overwrites(self) -> None:
         with tempfile.TemporaryDirectory() as data_home:
@@ -98,3 +98,24 @@ class CaptureTests(unittest.TestCase):
         self.assertEqual(profile_id_from_name("  Código diario!  "), "codigo-diario")
         with self.assertRaises(CaptureError):
             profile_id_from_name("---")
+
+    def test_non_slicing_tiled_geometry_is_saved_as_explicit_fallback(self) -> None:
+        clients = fixture("clients.json")
+        assert isinstance(clients, list)
+        second_tiled = dict(clients[0])
+        second_tiled["class"] = "kitty"
+        second_tiled["at"] = [1300, 500]
+        second_tiled["size"] = [400, 400]
+        clients.append(second_tiled)
+
+        profile = build_profile(
+            "Coding",
+            active_workspace=fixture("activeworkspace.json"),
+            clients=clients,
+            monitors=fixture("monitors.json"),
+            layout=fixture("layout.json"),
+            desktop_resolver=lambda window_class: window_class.lower(),
+        )
+
+        self.assertEqual(profile["layoutConfidence"], "fallback")
+        self.assertEqual(profile["warnings"][0]["code"], "layout_fallback")

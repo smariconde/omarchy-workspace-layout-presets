@@ -5,12 +5,12 @@ safely restoring it only into an empty active workspace.
 
 ## Status
 
-Milestone 2 complete. The repository contains a valid `bar-widget` manifest,
+Milestone 3 complete. The repository contains a valid `bar-widget` manifest,
 an inert widget entry point, a verified Quickshell-to-backend argv bridge,
-validated atomic profile management, and fixture-driven safe capture. Capture
-uses JSON-only Hyprland queries and desktop-entry IDs; it does not persist
-process command lines or execute launchers. Dwindle inference and restore are
-intentionally not implemented.
+validated atomic profile management, fixture-driven safe capture, and pure
+Dwindle tree inference for supported slicing geometries. Capture uses
+JSON-only Hyprland queries and desktop-entry IDs; it does not persist process
+command lines or execute launchers. Restore is intentionally not implemented.
 
 ## Safety model
 

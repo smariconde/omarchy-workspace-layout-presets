@@ -127,8 +127,16 @@ un identificador de un `.desktop` de tipo `Application` con `Exec`; `Exec`
 nunca se guarda ni se ejecuta en esta etapa. La falta de un descriptor y las
 instancias repetidas son advertencias explícitas.
 
-Mientras M3 no infiera el árbol, la captura escribe un perfil V1 válido con
-`layoutConfidence: "fallback"`, orden estable de ventanas y una advertencia.
+La inferencia M3 trabaja sólo con geometría tiled y no lee ni persiste campos
+adicionales de Hyprland. Acepta particiones binarias *slicing*: cada corte
+vertical u horizontal debe abarcar todo el rectángulo de su nodo. Los cortes
+equivalentes se resuelven de forma determinista (vertical antes que horizontal
+y luego por coordenada). El ratio es la fracción que ocupa el lado nuevo,
+medida en el centro del espacio entre ventanas. Si no existe un árbol slicing,
+la captura conserva el orden estable de nodos, marca
+`layoutConfidence: "fallback"` y añade una advertencia explícita; de otro modo
+guarda el ancla y los splits inferidos con `layoutConfidence: "exact"`.
+
 Un estado fullscreen, un layout no soportado, datos geométricos inválidos o
 más de diez ventanas de cada tipo bloquean la captura antes de escribir. El ID
 opaco se deriva del nombre visible normalizado a minúsculas ASCII y la creación

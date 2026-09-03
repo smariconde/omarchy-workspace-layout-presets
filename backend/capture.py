@@ -15,6 +15,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Callable, Mapping, Protocol, Sequence
 
+from .infer_dwindle import GeometryError, Rectangle, infer_dwindle
 from .launchers import resolve_desktop_id
 from .profile_store import ProfileAlreadyExistsError, ProfileError, create_profile, validate_profile
 
@@ -153,6 +154,23 @@ def _normalized_geometry(client: Mapping[str, Any], rectangle: tuple[float, floa
     return geometry, geometry != {"x": raw_x, "y": raw_y, "width": raw_width, "height": raw_height}
 
 
+def _tiled_rectangle(client: Mapping[str, Any]) -> Rectangle:
+    """Read only the tiled rectangle needed for pure Dwindle inference."""
+    at = client.get("at")
+    size = client.get("size")
+    if not isinstance(at, list) or len(at) != 2 or not isinstance(size, list) or len(size) != 2:
+        raise CaptureError("client geometry must contain two-element at and size arrays")
+    try:
+        return Rectangle(
+            _finite_number(at[0], "client at[0]"),
+            _finite_number(at[1], "client at[1]"),
+            _finite_number(size[0], "client size[0]"),
+            _finite_number(size[1], "client size[1]"),
+        )
+    except GeometryError as error:
+        raise CaptureError(str(error)) from error
+
+
 def build_profile(
     name: str,
     *,
@@ -195,6 +213,7 @@ def build_profile(
 
     ordinals: dict[str, int] = {}
     tiled_nodes: list[dict[str, Any]] = []
+    tiled_rectangles: dict[str, Rectangle] = {}
     floating_nodes: list[dict[str, Any]] = []
     warnings: list[dict[str, str]] = []
     for index, client in enumerate(selected, start=1):
@@ -218,15 +237,23 @@ def build_profile(
                 warnings.append(_warning("geometry_clamped", f"Floating window {index} exceeded the usable workspace rectangle."))
         else:
             tiled_nodes.append(node)
-    if tiled_nodes:
+            tiled_rectangles[node["id"]] = _tiled_rectangle(client)
+    try:
+        inferred = infer_dwindle(tiled_rectangles)
+    except GeometryError as error:
+        raise CaptureError(f"tiled layout geometry is invalid: {error}") from error
+    if inferred is not None:
+        anchor, splits, confidence = inferred.anchor, inferred.splits, "exact"
+    elif tiled_nodes:
         anchor = tiled_nodes[0]["id"]
         splits = [
             {"focus": tiled_nodes[position - 1]["id"], "direction": "right", "new": node["id"], "ratio": 0.5}
             for position, node in enumerate(tiled_nodes[1:], start=1)
         ]
+        confidence = "fallback"
+        warnings.insert(0, _warning("layout_fallback", "Tiled geometry cannot be represented as a Dwindle tree; restore will use launch order only."))
     else:
-        anchor, splits = None, []
-    warnings.insert(0, _warning("layout_fallback", "Dwindle tree inference is pending; restore will use launch order only."))
+        anchor, splits, confidence = None, [], "exact"
     timestamp = (datetime.now(UTC) if created_at is None else created_at).astimezone(UTC).replace(microsecond=0)
     profile: dict[str, Any] = {
         "schemaVersion": 1,
@@ -237,7 +264,7 @@ def build_profile(
             "workspace": {"name": workspace_name},
             "monitor": {"connector": rectangle[4], "usableWidth": int(rectangle[2]), "usableHeight": int(rectangle[3])},
         },
-        "layoutConfidence": "fallback",
+        "layoutConfidence": confidence,
         "tiled": {"anchor": anchor, "nodes": tiled_nodes, "splits": splits},
         "floating": floating_nodes,
         "warnings": warnings,

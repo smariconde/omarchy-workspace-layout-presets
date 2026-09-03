@@ -1,6 +1,6 @@
 # Hoja de ruta de desarrollo
 
-**Estado:** M2 completado · próxima sesión: M3
+**Estado:** M3 completado · próxima sesión: M4
 **Objetivo:** una primera beta de perfiles de layout para un workspace
 `dwindle` en Omarchy 4.x.
 
@@ -24,7 +24,7 @@ contrato, registrarla primero en la arquitectura; no esconderla en código.
 | Almacenamiento de perfiles | Hecho | esquema V1 profundo, operaciones atómicas y sin sobrescritura |
 | CLI | Hecho para perfiles | list/show/rename/duplicate/delete/export/import con JSON estable |
 | Captura y lanzadores | Hecho | fixtures anonimizadas, adaptador `hyprctl` de sólo lectura y resolución `.desktop` |
-| Inferencia Dwindle | Pendiente | módulo reservado |
+| Inferencia Dwindle | Hecho | inferencia pura de particiones slicing y fallback explícito |
 | Planificación y restauración | Pendiente | módulo reservado |
 | Interfaz | Pendiente | componentes reservados |
 | Validación en Omarchy | Pendiente | aún no ejecutada |
@@ -38,7 +38,7 @@ La suite actual se ejecuta con `python -m unittest discover -v`.
 | M0 | Contrato CLI y puente QML → backend | — | El comando puede llamarse con argumentos separados y devuelve resultados JSON que la UI puede consumir | Hecho |
 | M1 | Perfiles completos | M0 | Validación profunda y operaciones show/rename/duplicate/delete/export/import cubiertas por tests | Hecho |
 | M2 | Captura segura | M1 | Fixtures de Hyprland → perfil válido, sin datos sensibles ni comandos de shell | Hecho |
-| M3 | Inferencia Dwindle | M2 | Árbol exacto para geometrías soportadas; `fallback` explícito para las demás | Pendiente |
+| M3 | Inferencia Dwindle | M2 | Árbol exacto para geometrías soportadas; `fallback` explícito para las demás | Hecho |
 | M4 | Plan de restauración | M1–M3 | `plan` es de sólo lectura y bloquea invariablemente workspaces no vacíos | Pendiente |
 | M5 | Restauración controlada | M4 | Ejecuta sólo un plan aprobado, verifica el resultado y nunca cierra ventanas | Pendiente |
 | M6 | Interfaz V1 | M0, M1, M4, M5 | Guardar, gestionar, previsualizar y restaurar desde el widget accesible | Pendiente |
@@ -107,14 +107,27 @@ datos sensibles; `layoutctl capture <name>` mantiene el sobre JSON.
 **Evidencia:** `backend/capture.py`, `backend/launchers.py`,
 `tests/test_capture.py`, `tests/test_launchers.py`.
 
+### M3 — Inferencia Dwindle — Hecho
+
+- Inferir un árbol binario sólo para geometrías tiled representables como
+  cortes completos verticales u horizontales.
+- Calcular ratios en el centro de los gaps y emitir una secuencia determinista
+  de ancla y operaciones de split.
+- Conservar el perfil válido de fallback y una advertencia explícita cuando la
+  geometría es escalonada, solapada o no admite un árbol slicing.
+
+**Cierre:** las geometrías soportadas se guardan con
+`layoutConfidence: "exact"`; las demás no inventan un árbol de restauración.
+
+**Evidencia:** `backend/infer_dwindle.py`, `backend/capture.py`,
+`tests/test_infer_dwindle.py`, `tests/test_capture.py`.
+
 ## Secuencia posterior
 
-1. M3: inferir Dwindle y reemplazar el árbol fallback cuando la geometría sea
-   representable.
-2. M4: producir y aprobar planes de sólo lectura.
-3. M5: restaurar tiled, floating y fullscreen permitido, con verificación.
-4. M6: construir la UI sólo sobre las operaciones ya probadas.
-5. M7: endurecer, probar en máquinas reales y publicar la beta.
+1. M4: producir y aprobar planes de sólo lectura.
+2. M5: restaurar tiled, floating y fullscreen permitido, con verificación.
+3. M6: construir la UI sólo sobre las operaciones ya probadas.
+4. M7: endurecer, probar en máquinas reales y publicar la beta.
 
 ## Cierre de cada sesión
 
