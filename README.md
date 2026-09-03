@@ -5,9 +5,11 @@ safely restoring it only into an empty active workspace.
 
 ## Status
 
-Foundation only. The repository contains a valid `bar-widget` manifest, an
-inert QML entry point, a dependency-free `profile list` backend command, and
-standard-library tests. Capture and restore are intentionally not implemented.
+Milestone 0 complete. The repository contains a valid `bar-widget` manifest,
+an inert widget entry point, a verified Quickshell-to-backend argv bridge, a
+dependency-free `profile list` command, and standard-library tests. Capture,
+profile management beyond listing, and restore are intentionally not
+implemented.
 
 ## Safety model
 

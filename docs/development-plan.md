@@ -1,6 +1,6 @@
 # Hoja de ruta de desarrollo
 
-**Estado:** fundación completada · próxima sesión: M0.1  
+**Estado:** M0 completado · próxima sesión: M1
 **Objetivo:** una primera beta de perfiles de layout para un workspace
 `dwindle` en Omarchy 4.x.
 
@@ -34,7 +34,7 @@ La suite actual se ejecuta con `python -m unittest discover -v`.
 
 | Hito | Entregable | Depende de | Criterio de salida | Estado |
 | --- | --- | --- | --- | --- |
-| M0 | Contrato CLI y puente QML → backend | — | El comando puede llamarse con argumentos separados y devuelve resultados JSON que la UI puede consumir | En curso |
+| M0 | Contrato CLI y puente QML → backend | — | El comando puede llamarse con argumentos separados y devuelve resultados JSON que la UI puede consumir | Hecho |
 | M1 | Perfiles completos | M0 | Validación profunda y operaciones show/rename/duplicate/delete/export/import cubiertas por tests | Pendiente |
 | M2 | Captura segura | M1 | Fixtures de Hyprland → perfil válido, sin datos sensibles ni comandos de shell | Pendiente |
 | M3 | Inferencia Dwindle | M2 | Árbol exacto para geometrías soportadas; `fallback` explícito para las demás | Pendiente |
@@ -45,7 +45,7 @@ La suite actual se ejecuta con `python -m unittest discover -v`.
 
 ## Próximas sesiones
 
-### M0.1 — Contrato de `layoutctl`
+### M0.1 — Contrato de `layoutctl` — Hecho
 
 - Definir la envoltura JSON común para éxito, error, advertencia y bloqueo.
 - Fijar argumentos y códigos de salida de `capture`, `plan`, `restore` y
@@ -56,7 +56,10 @@ La suite actual se ejecuta con `python -m unittest discover -v`.
 
 **Cierre:** contrato escrito y pruebas que fijan sus argumentos y respuestas.
 
-### M0.2 — Spike de proceso QML
+**Evidencia:** `backend/layoutctl.py`, `tests/test_layoutctl.py` y el contrato
+CLI v1 en `docs/architecture.md`.
+
+### M0.2 — Spike de proceso QML — Hecho
 
 - Verificar en la versión objetivo de Omarchy/Quickshell un proceso con argv,
   stdout y código de salida observables desde QML.
@@ -65,6 +68,10 @@ La suite actual se ejecuta con `python -m unittest discover -v`.
 
 **Cierre:** integración elegida y documentada. Si no permite argv y lectura de
 resultado de forma segura, rediseñar M0 antes de iniciar M1.
+
+**Evidencia:** `qml/LayoutctlClient.qml` usa `Process` con argv fijo;
+`tests/test_qml_process_probe.py` ejecuta el probe real en Quickshell 0.3.1 y
+comprueba stdout JSON y código de salida. `omarchy plugin validate .` pasa.
 
 ## Secuencia posterior
 

@@ -44,6 +44,72 @@ profile list|show|rename|duplicate|delete|export|import
 The restore command is deliberately separate from planning so the UI can show
 launch, skip, warning, and blocked entries before a state-changing action.
 
+## Contrato CLI v1 (M0)
+
+La UI invoca exclusivamente un ejecutable fijo y un array de argumentos. No
+compone una línea de shell, y el contenido de un perfil nunca se convierte en
+argumentos nuevos ni en código. La gramática pública es:
+
+```text
+layoutctl capture <name>
+layoutctl plan <profile-id>
+layoutctl restore <approved-plan-id>
+layoutctl profile list
+layoutctl profile show <profile-id>
+layoutctl profile rename <profile-id> <name>
+layoutctl profile duplicate <profile-id> <new-profile-id>
+layoutctl profile delete <profile-id>
+layoutctl profile export <profile-id> <destination>
+layoutctl profile import <source>
+```
+
+Cada invocación escribe exactamente un objeto JSON en stdout, tanto en éxito
+como en error. La forma común es:
+
+```json
+{
+  "contractVersion": 1,
+  "status": "ok | error | blocked",
+  "data": {},
+  "warnings": [],
+  "blocked": [],
+  "error": null
+}
+```
+
+`warnings` y `blocked` contienen objetos con `code` y `message`; una respuesta
+`blocked` nunca realiza cambios. Una respuesta `error` lleva el detalle en
+`error` (`code`, `message`). Los códigos de proceso son 0 para éxito, 1 para
+un error de operación, 2 para argumentos inválidos y 3 para un comando
+declarado pero todavía no implementado.
+
+`approved-plan-id` será un token opaco emitido y guardado por `plan` en M4. No
+codifica operaciones, argumentos de lanzamiento ni geometría, y `restore` no
+aceptará otra fuente de instrucciones. El token estará asociado al perfil y al
+workspace objetivo que se comprobó vacío; se invalidará después de usarlo o
+si cambian las condiciones comprobadas. Hasta M4, `plan` y `restore` devuelven
+el error JSON `unimplemented` y no tocan Hyprland.
+
+### Integración QML → backend (M0.2)
+
+En Omarchy 4.x con Quickshell 0.3.1, `qml/LayoutctlClient.qml` usa
+`Quickshell.Io.Process`: su propiedad `command` recibe un array y no invoca un
+shell. El único comando expuesto por ahora es el array fijo:
+
+```text
+[<ruta-local-del-plugin>/backend/layoutctl.py, "profile", "list"]
+```
+
+La ruta se resuelve desde el propio archivo QML y se acepta sólo si es una URL
+`file:` local; `layoutctl.py` es ejecutable. `StdioCollector` espera el fin de
+stdout y el manejador `onExited` entrega a QML el código de salida, el objeto
+JSON ya parseado (o `null` si no es válido) y stderr. El proceso no se ejecuta
+en modo detached: Quickshell lo termina al recargar o cerrar la shell.
+
+Las futuras operaciones deben ser métodos explícitos del cliente con arrays
+creados en código. No se añadirá un método genérico que reciba un comando, una
+cadena de shell o argumentos derivados de perfiles.
+
 ## Desarrollo
 
 La secuencia, estado y criterios de salida viven en
