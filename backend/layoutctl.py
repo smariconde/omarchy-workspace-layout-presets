@@ -15,9 +15,29 @@ from collections.abc import Callable, Mapping
 from typing import Any
 
 try:  # Supports both `python backend/layoutctl.py` and `python -m backend.layoutctl`.
-    from .profile_store import ProfileError, list_profiles
+    from .profile_store import (
+        ProfileAlreadyExistsError,
+        ProfileError,
+        delete_profile,
+        duplicate_profile,
+        export_profile,
+        import_profile,
+        list_profiles,
+        read_profile,
+        rename_profile,
+    )
 except ImportError:  # pragma: no cover - exercised by the installed script entry point.
-    from profile_store import ProfileError, list_profiles
+    from profile_store import (  # type: ignore[no-redef]
+        ProfileAlreadyExistsError,
+        ProfileError,
+        delete_profile,
+        duplicate_profile,
+        export_profile,
+        import_profile,
+        list_profiles,
+        read_profile,
+        rename_profile,
+    )
 
 
 CONTRACT_VERSION = 1
@@ -65,6 +85,7 @@ def parse_arguments(arguments: list[str]) -> argparse.Namespace:
     duplicate.add_argument("new_profile_id")
     delete = profile_actions.add_parser("delete", add_help=False)
     delete.add_argument("profile_id")
+    delete.add_argument("--confirm", action="store_true")
     export = profile_actions.add_parser("export", add_help=False)
     export.add_argument("profile_id")
     export.add_argument("destination")
@@ -139,7 +160,39 @@ def execute(
             return EXIT_ERROR, result_error("storage_error", str(error))
 
     if args.command == "profile":
-        return EXIT_UNIMPLEMENTED, result_unimplemented(f"profile {args.profile_action}")
+        try:
+            if args.profile_action == "show":
+                return EXIT_OK, result_ok({"profileId": args.profile_id, "profile": read_profile(args.profile_id)})
+            if args.profile_action == "rename":
+                profile = rename_profile(args.profile_id, args.name)
+                return EXIT_OK, result_ok({"profileId": args.profile_id, "profile": profile})
+            if args.profile_action == "duplicate":
+                profile = duplicate_profile(args.profile_id, args.new_profile_id)
+                return EXIT_OK, result_ok(
+                    {"profileId": args.new_profile_id, "sourceProfileId": args.profile_id, "profile": profile}
+                )
+            if args.profile_action == "delete":
+                if not args.confirm:
+                    return EXIT_ERROR, result_blocked(
+                        [{"code": "confirmation_required", "message": "Deleting a profile requires explicit confirmation."}],
+                        data={"profileId": args.profile_id},
+                    )
+                delete_profile(args.profile_id)
+                return EXIT_OK, result_ok({"profileId": args.profile_id})
+            if args.profile_action == "export":
+                destination = export_profile(args.profile_id, args.destination)
+                return EXIT_OK, result_ok({"profileId": args.profile_id, "destination": str(destination)})
+            if args.profile_action == "import":
+                profile_id, profile = import_profile(args.source)
+                return EXIT_OK, result_ok({"profileId": profile_id, "profile": profile})
+        except ProfileAlreadyExistsError as error:
+            return EXIT_ERROR, result_blocked(
+                [{"code": "already_exists", "message": str(error)}],
+            )
+        except ProfileError as error:
+            return EXIT_ERROR, result_error("profile_error", str(error))
+        except OSError as error:
+            return EXIT_ERROR, result_error("storage_error", str(error))
     return EXIT_UNIMPLEMENTED, result_unimplemented(args.command)
 
 

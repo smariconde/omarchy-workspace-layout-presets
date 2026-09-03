@@ -38,7 +38,7 @@ from a profile.
 capture <name>
 plan <profile-id>
 restore <approved-plan-id>
-profile list|show|rename|duplicate|delete|export|import
+profile list|show|rename|duplicate|delete --confirm|export|import
 ```
 
 The restore command is deliberately separate from planning so the UI can show
@@ -58,7 +58,7 @@ layoutctl profile list
 layoutctl profile show <profile-id>
 layoutctl profile rename <profile-id> <name>
 layoutctl profile duplicate <profile-id> <new-profile-id>
-layoutctl profile delete <profile-id>
+layoutctl profile delete <profile-id> --confirm
 layoutctl profile export <profile-id> <destination>
 layoutctl profile import <source>
 ```
@@ -89,6 +89,27 @@ aceptará otra fuente de instrucciones. El token estará asociado al perfil y al
 workspace objetivo que se comprobó vacío; se invalidará después de usarlo o
 si cambian las condiciones comprobadas. Hasta M4, `plan` y `restore` devuelven
 el error JSON `unimplemented` y no tocan Hyprland.
+
+### Perfil V1 y operaciones de almacenamiento (M1)
+
+`profile_store.py` valida el perfil completo antes de escribirlo, importarlo o
+devolverlo con `show`. El esquema es cerrado: campos desconocidos se rechazan
+para evitar que los perfiles acumulen líneas de comando, documentos, URLs u
+otros datos de sesión. Cada ventana tiene un `id` seguro, `app`
+(`desktopId` opcional, `wmClass`, `ordinal`) y un `launch` de tipo `desktop`
+con un `desktopId` validado o de tipo `unresolved`. Los nodos tiled forman un
+árbol con un ancla y operaciones que añaden cada nodo una sola vez; los ratios
+son finitos y están estrictamente entre 0 y 1. Las ventanas floating usan
+`geometry` normalizada (`x`, `y`, `width`, `height`) entre 0 y 1.
+
+Los IDs de perfil se convierten exclusivamente en nombres bajo el directorio
+de perfiles. `show`, `rename` y `duplicate` devuelven el perfil validado.
+`delete` exige el argumento literal `--confirm`; sin él responde `blocked`
+con `confirmation_required` y no llama al almacenamiento. Duplicate, import y
+export crean archivos privados con escritura atómica sin sobrescritura; si el
+destino ya existe responden `blocked` con `already_exists`. Import deriva el
+ID del nombre base seguro del archivo elegido por la persona usuaria y bloquea
+cualquier colisión.
 
 ### Integración QML → backend (M0.2)
 

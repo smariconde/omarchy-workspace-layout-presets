@@ -4,6 +4,7 @@ import io
 import json
 import unittest
 from contextlib import redirect_stdout
+from unittest.mock import patch
 
 from backend import layoutctl
 
@@ -27,23 +28,68 @@ class LayoutctlContractTests(unittest.TestCase):
             },
         )
 
-    def test_declared_future_commands_are_not_silently_accepted(self) -> None:
+    def test_future_desktop_commands_are_not_silently_accepted(self) -> None:
         for arguments in (
             ["capture", "Coding"],
             ["plan", "coding"],
             ["restore", "plan-v1-example"],
-            ["profile", "show", "coding"],
-            ["profile", "rename", "coding", "Writing"],
-            ["profile", "duplicate", "coding", "coding-copy"],
-            ["profile", "delete", "coding"],
-            ["profile", "export", "coding", "/tmp/coding.json"],
-            ["profile", "import", "/tmp/coding.json"],
         ):
             with self.subTest(arguments=arguments):
                 exit_code, response = layoutctl.execute(arguments)
                 self.assertEqual(exit_code, layoutctl.EXIT_UNIMPLEMENTED)
                 self.assertEqual(response["status"], "error")
                 self.assertEqual(response["error"]["code"], "unimplemented")
+
+    def test_profile_management_commands_return_json_data(self) -> None:
+        profile = {"schemaVersion": 1, "name": "Coding"}
+        with (
+            patch.object(layoutctl, "read_profile", return_value=profile),
+            patch.object(layoutctl, "rename_profile", return_value=profile),
+            patch.object(layoutctl, "duplicate_profile", return_value=profile),
+            patch.object(layoutctl, "export_profile", return_value="/tmp/coding.json"),
+            patch.object(layoutctl, "import_profile", return_value=("imported", profile)),
+        ):
+            cases = (
+                (["profile", "show", "coding"], {"profileId": "coding", "profile": profile}),
+                (["profile", "rename", "coding", "Writing"], {"profileId": "coding", "profile": profile}),
+                (
+                    ["profile", "duplicate", "coding", "coding-copy"],
+                    {"profileId": "coding-copy", "sourceProfileId": "coding", "profile": profile},
+                ),
+                (["profile", "export", "coding", "/tmp/coding.json"], {"profileId": "coding", "destination": "/tmp/coding.json"}),
+                (["profile", "import", "/tmp/imported.json"], {"profileId": "imported", "profile": profile}),
+            )
+            for arguments, expected_data in cases:
+                with self.subTest(arguments=arguments):
+                    exit_code, response = layoutctl.execute(arguments)
+                    self.assertEqual(exit_code, layoutctl.EXIT_OK)
+                    self.assertEqual(response["status"], "ok")
+                    self.assertEqual(response["data"], expected_data)
+
+    def test_delete_requires_confirmation_before_the_store_is_called(self) -> None:
+        with patch.object(layoutctl, "delete_profile") as delete:
+            exit_code, response = layoutctl.execute(["profile", "delete", "coding"])
+
+        self.assertEqual(exit_code, layoutctl.EXIT_ERROR)
+        self.assertEqual(response["status"], "blocked")
+        self.assertEqual(response["blocked"][0]["code"], "confirmation_required")
+        delete.assert_not_called()
+
+    def test_confirmed_delete_calls_the_store(self) -> None:
+        with patch.object(layoutctl, "delete_profile") as delete:
+            exit_code, response = layoutctl.execute(["profile", "delete", "coding", "--confirm"])
+
+        self.assertEqual(exit_code, layoutctl.EXIT_OK)
+        self.assertEqual(response["data"], {"profileId": "coding"})
+        delete.assert_called_once_with("coding")
+
+    def test_profile_conflicts_become_non_destructive_blocked_responses(self) -> None:
+        with patch.object(layoutctl, "duplicate_profile", side_effect=layoutctl.ProfileAlreadyExistsError("already exists")):
+            exit_code, response = layoutctl.execute(["profile", "duplicate", "coding", "copy"])
+
+        self.assertEqual(exit_code, layoutctl.EXIT_ERROR)
+        self.assertEqual(response["status"], "blocked")
+        self.assertEqual(response["blocked"][0]["code"], "already_exists")
 
     def test_invalid_argv_returns_json_not_argparse_text(self) -> None:
         exit_code, response = layoutctl.execute(["restore"])
@@ -87,3 +133,8 @@ class LayoutctlContractTests(unittest.TestCase):
         self.assertEqual(parsed.profile_action, "duplicate")
         self.assertEqual(parsed.profile_id, "coding")
         self.assertEqual(parsed.new_profile_id, "coding-copy")
+
+    def test_parser_requires_an_explicit_delete_confirmation_flag(self) -> None:
+        parsed = layoutctl.parse_arguments(["profile", "delete", "coding", "--confirm"])
+
+        self.assertTrue(parsed.confirm)

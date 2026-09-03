@@ -1,6 +1,6 @@
 # Hoja de ruta de desarrollo
 
-**Estado:** M0 completado · próxima sesión: M1
+**Estado:** M1 completado · próxima sesión: M2
 **Objetivo:** una primera beta de perfiles de layout para un workspace
 `dwindle` en Omarchy 4.x.
 
@@ -21,8 +21,8 @@ contrato, registrarla primero en la arquitectura; no esconderla en código.
 | Área | Estado | Evidencia |
 | --- | --- | --- |
 | Manifiesto y puntos de entrada | Hecho | `manifest.json`, QML inerte |
-| Almacenamiento de perfiles | Parcial | ids seguros, JSON validado superficialmente y escritura atómica |
-| CLI | Parcial | `layoutctl profile list` |
+| Almacenamiento de perfiles | Hecho | esquema V1 profundo, operaciones atómicas y sin sobrescritura |
+| CLI | Hecho para perfiles | list/show/rename/duplicate/delete/export/import con JSON estable |
 | Captura, inferencia y lanzadores | Pendiente | módulos reservados |
 | Planificación y restauración | Pendiente | módulo reservado |
 | Interfaz | Pendiente | componentes reservados |
@@ -35,7 +35,7 @@ La suite actual se ejecuta con `python -m unittest discover -v`.
 | Hito | Entregable | Depende de | Criterio de salida | Estado |
 | --- | --- | --- | --- | --- |
 | M0 | Contrato CLI y puente QML → backend | — | El comando puede llamarse con argumentos separados y devuelve resultados JSON que la UI puede consumir | Hecho |
-| M1 | Perfiles completos | M0 | Validación profunda y operaciones show/rename/duplicate/delete/export/import cubiertas por tests | Pendiente |
+| M1 | Perfiles completos | M0 | Validación profunda y operaciones show/rename/duplicate/delete/export/import cubiertas por tests | Hecho |
 | M2 | Captura segura | M1 | Fixtures de Hyprland → perfil válido, sin datos sensibles ni comandos de shell | Pendiente |
 | M3 | Inferencia Dwindle | M2 | Árbol exacto para geometrías soportadas; `fallback` explícito para las demás | Pendiente |
 | M4 | Plan de restauración | M1–M3 | `plan` es de sólo lectura y bloquea invariablemente workspaces no vacíos | Pendiente |
@@ -73,15 +73,29 @@ resultado de forma segura, rediseñar M0 antes de iniciar M1.
 `tests/test_qml_process_probe.py` ejecuta el probe real en Quickshell 0.3.1 y
 comprueba stdout JSON y código de salida. `omarchy plugin validate .` pasa.
 
+### M1 — Perfiles completos — Hecho
+
+- Validar en profundidad el esquema V1: identidad, descriptores de launcher
+  seguros, árbol Dwindle, geometría floating y advertencias.
+- Implementar `show`, `rename`, `duplicate`, `delete`, `export` e `import`.
+- Exigir `--confirm` al borrar y bloquear conflictos de importación, duplicado
+  o exportación sin sobrescribir ningún archivo.
+
+**Cierre:** los perfiles inválidos o con datos ajenos al esquema se rechazan;
+las operaciones de gestión responden exclusivamente el sobre JSON del contrato
+y están cubiertas por pruebas de almacenamiento y CLI.
+
+**Evidencia:** `backend/profile_store.py`, `backend/layoutctl.py`,
+`tests/test_profile_store.py`, `tests/test_layoutctl.py`.
+
 ## Secuencia posterior
 
-1. M1: terminar el modelo y la gestión de perfiles.
-2. M2: capturar workspace, monitor, clientes y lanzadores desde fixtures.
-3. M3: inferir Dwindle y conectar su fallback a captura.
-4. M4: producir y aprobar planes de sólo lectura.
-5. M5: restaurar tiled, floating y fullscreen permitido, con verificación.
-6. M6: construir la UI sólo sobre las operaciones ya probadas.
-7. M7: endurecer, probar en máquinas reales y publicar la beta.
+1. M2: capturar workspace, monitor, clientes y lanzadores desde fixtures.
+2. M3: inferir Dwindle y conectar su fallback a captura.
+3. M4: producir y aprobar planes de sólo lectura.
+4. M5: restaurar tiled, floating y fullscreen permitido, con verificación.
+5. M6: construir la UI sólo sobre las operaciones ya probadas.
+6. M7: endurecer, probar en máquinas reales y publicar la beta.
 
 ## Cierre de cada sesión
 
