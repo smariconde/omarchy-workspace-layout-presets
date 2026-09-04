@@ -12,34 +12,27 @@ import argparse
 import json
 import sys
 from collections.abc import Callable, Mapping
+from pathlib import Path
 from typing import Any
 
-try:  # Supports both `python backend/layoutctl.py` and `python -m backend.layoutctl`.
-    from .profile_store import (
-        ProfileAlreadyExistsError,
-        ProfileError,
-        delete_profile,
-        duplicate_profile,
-        export_profile,
-        import_profile,
-        list_profiles,
-        read_profile,
-        rename_profile,
-    )
-    from .capture import CaptureError, capture_current_workspace
-except ImportError:  # pragma: no cover - exercised by the installed script entry point.
-    from profile_store import (  # type: ignore[no-redef]
-        ProfileAlreadyExistsError,
-        ProfileError,
-        delete_profile,
-        duplicate_profile,
-        export_profile,
-        import_profile,
-        list_profiles,
-        read_profile,
-        rename_profile,
-    )
-    from capture import CaptureError, capture_current_workspace  # type: ignore[no-redef]
+if __package__ in (None, ""):  # pragma: no cover - taken only by `backend/layoutctl.py <args>`.
+    # QML runs this file by absolute path, so make the plugin directory importable
+    # before the package imports below; `python -m backend.layoutctl` skips this.
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from backend.capture import CaptureError, capture_current_workspace
+from backend.profile_store import (
+    ProfileAlreadyExistsError,
+    ProfileError,
+    delete_profile,
+    duplicate_profile,
+    export_profile,
+    import_profile,
+    list_profiles,
+    read_profile,
+    rename_profile,
+)
+from backend.restore import PlanBlocked, PlanError, plan_profile
 
 
 CONTRACT_VERSION = 1
@@ -148,6 +141,7 @@ def execute(
     arguments: list[str],
     profile_lister: Callable[[], list[str]] = list_profiles,
     capture_workspace: Callable[[str], tuple[str, dict[str, Any]]] = capture_current_workspace,
+    planner: Callable[[str], tuple[dict[str, Any], list[dict[str, str]]]] = plan_profile,
 ) -> tuple[int, dict[str, Any]]:
     """Execute one command and return its exit code plus JSON-safe response data."""
     try:
@@ -163,6 +157,21 @@ def execute(
             return EXIT_ERROR, result_error("capture_error", str(error))
         except ProfileAlreadyExistsError as error:
             return EXIT_ERROR, result_blocked([{"code": "already_exists", "message": str(error)}])
+
+    if args.command == "plan":
+        try:
+            data, warnings = planner(args.profile_id)
+            return EXIT_OK, result_ok(data, warnings=warnings)
+        except PlanBlocked as blocked:
+            return EXIT_ERROR, result_blocked(blocked.blocked, warnings=blocked.warnings)
+        except PlanError as error:
+            return EXIT_ERROR, result_error("plan_error", str(error))
+        except ProfileError as error:
+            return EXIT_ERROR, result_error("profile_error", str(error))
+        except CaptureError as error:
+            return EXIT_ERROR, result_error("hyprland_error", str(error))
+        except OSError as error:
+            return EXIT_ERROR, result_error("storage_error", str(error))
 
     if args.command == "profile" and args.profile_action == "list":
         try:

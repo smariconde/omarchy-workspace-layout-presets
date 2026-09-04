@@ -2,11 +2,19 @@ from __future__ import annotations
 
 import io
 import json
+import os
+import subprocess
+import sys
+import tempfile
 import unittest
 from contextlib import redirect_stdout
+from pathlib import Path
 from unittest.mock import patch
 
 from backend import layoutctl
+
+
+EXECUTABLE = Path(layoutctl.__file__).resolve()
 
 
 class LayoutctlContractTests(unittest.TestCase):
@@ -29,12 +37,55 @@ class LayoutctlContractTests(unittest.TestCase):
         )
 
     def test_unimplemented_desktop_commands_are_not_silently_accepted(self) -> None:
-        for arguments in (["plan", "coding"], ["restore", "plan-v1-example"]):
-            with self.subTest(arguments=arguments):
-                exit_code, response = layoutctl.execute(arguments)
-                self.assertEqual(exit_code, layoutctl.EXIT_UNIMPLEMENTED)
+        exit_code, response = layoutctl.execute(["restore", "0123456789abcdef0123456789abcdef"])
+
+        self.assertEqual(exit_code, layoutctl.EXIT_UNIMPLEMENTED)
+        self.assertEqual(response["status"], "error")
+        self.assertEqual(response["error"]["code"], "unimplemented")
+
+    def test_plan_returns_its_preview_and_warnings_without_changing_anything(self) -> None:
+        preview = {"planId": "0123456789abcdef0123456789abcdef", "profileId": "coding", "layoutMode": "tree"}
+        warnings = [{"code": "monitor_changed", "message": "scaled"}]
+
+        exit_code, response = layoutctl.execute(["plan", "coding"], planner=lambda profile_id: (preview, warnings))
+
+        self.assertEqual(exit_code, layoutctl.EXIT_OK)
+        self.assertEqual(response["data"], preview)
+        self.assertEqual(response["warnings"], warnings)
+        self.assertEqual(response["blocked"], [])
+
+    def test_a_blocked_plan_reports_its_reasons_and_keeps_the_warnings(self) -> None:
+        blocked = [{"code": "workspace_not_empty", "message": "The active workspace has windows."}]
+        warnings = [{"code": "layout_fallback", "message": "order only"}]
+
+        def planner(profile_id: str) -> tuple[dict, list]:
+            raise layoutctl.PlanBlocked(blocked, warnings)
+
+        exit_code, response = layoutctl.execute(["plan", "coding"], planner=planner)
+
+        self.assertEqual(exit_code, layoutctl.EXIT_ERROR)
+        self.assertEqual(response["status"], "blocked")
+        self.assertEqual(response["data"], None)
+        self.assertEqual(response["blocked"], blocked)
+        self.assertEqual(response["warnings"], warnings)
+
+    def test_plan_failures_stay_inside_the_json_contract(self) -> None:
+        cases = (
+            (layoutctl.PlanError("bad profile"), "plan_error"),
+            (layoutctl.ProfileError("missing"), "profile_error"),
+            (layoutctl.CaptureError("Hyprland is unavailable"), "hyprland_error"),
+            (OSError("no runtime directory"), "storage_error"),
+        )
+        for error, code in cases:
+            with self.subTest(code=code):
+                def planner(profile_id: str, error: Exception = error) -> tuple[dict, list]:
+                    raise error
+
+                exit_code, response = layoutctl.execute(["plan", "coding"], planner=planner)
+
+                self.assertEqual(exit_code, layoutctl.EXIT_ERROR)
                 self.assertEqual(response["status"], "error")
-                self.assertEqual(response["error"]["code"], "unimplemented")
+                self.assertEqual(response["error"]["code"], code)
 
     def test_capture_returns_a_profile_and_its_read_only_warnings(self) -> None:
         profile = {"schemaVersion": 1, "name": "Coding", "warnings": [{"code": "layout_fallback", "message": "pending"}]}
@@ -145,3 +196,19 @@ class LayoutctlContractTests(unittest.TestCase):
         parsed = layoutctl.parse_arguments(["profile", "delete", "coding", "--confirm"])
 
         self.assertTrue(parsed.confirm)
+
+    def test_the_executable_qml_invokes_by_path_answers_with_one_json_object(self) -> None:
+        """QML runs this file by absolute path, so it must work outside the package."""
+        with tempfile.TemporaryDirectory() as data_home:
+            completed = subprocess.run(
+                [sys.executable, str(EXECUTABLE), "profile", "list"],
+                cwd=data_home,
+                env={**os.environ, "XDG_DATA_HOME": data_home},
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+
+        self.assertEqual(completed.returncode, layoutctl.EXIT_OK, completed.stderr)
+        self.assertEqual(json.loads(completed.stdout), layoutctl.result_ok({"profiles": []}))

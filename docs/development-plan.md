@@ -1,6 +1,6 @@
 # Hoja de ruta de desarrollo
 
-**Estado:** M3 completado · próxima sesión: M4
+**Estado:** M4 completado · próxima sesión: M5
 **Objetivo:** una primera beta de perfiles de layout para un workspace
 `dwindle` en Omarchy 4.x.
 
@@ -25,7 +25,8 @@ contrato, registrarla primero en la arquitectura; no esconderla en código.
 | CLI | Hecho para perfiles | list/show/rename/duplicate/delete/export/import con JSON estable |
 | Captura y lanzadores | Hecho | fixtures anonimizadas, adaptador `hyprctl` de sólo lectura y resolución `.desktop` |
 | Inferencia Dwindle | Hecho | inferencia pura de particiones slicing y fallback explícito |
-| Planificación y restauración | Pendiente | módulo reservado |
+| Planificación | Hecho | `plan` de sólo lectura, bloqueos explícitos y token de un solo uso |
+| Restauración | Pendiente | `restore` sigue devolviendo `unimplemented` |
 | Interfaz | Pendiente | componentes reservados |
 | Validación en Omarchy | Pendiente | aún no ejecutada |
 
@@ -39,7 +40,7 @@ La suite actual se ejecuta con `python -m unittest discover -v`.
 | M1 | Perfiles completos | M0 | Validación profunda y operaciones show/rename/duplicate/delete/export/import cubiertas por tests | Hecho |
 | M2 | Captura segura | M1 | Fixtures de Hyprland → perfil válido, sin datos sensibles ni comandos de shell | Hecho |
 | M3 | Inferencia Dwindle | M2 | Árbol exacto para geometrías soportadas; `fallback` explícito para las demás | Hecho |
-| M4 | Plan de restauración | M1–M3 | `plan` es de sólo lectura y bloquea invariablemente workspaces no vacíos | Pendiente |
+| M4 | Plan de restauración | M1–M3 | `plan` es de sólo lectura y bloquea invariablemente workspaces no vacíos | Hecho |
 | M5 | Restauración controlada | M4 | Ejecuta sólo un plan aprobado, verifica el resultado y nunca cierra ventanas | Pendiente |
 | M6 | Interfaz V1 | M0, M1, M4, M5 | Guardar, gestionar, previsualizar y restaurar desde el widget accesible | Pendiente |
 | M7 | Hardening y beta | M0–M6 | Suite, validación del plugin, matriz manual y documentación de límites completas | Pendiente |
@@ -122,12 +123,46 @@ datos sensibles; `layoutctl capture <name>` mantiene el sobre JSON.
 **Evidencia:** `backend/infer_dwindle.py`, `backend/capture.py`,
 `tests/test_infer_dwindle.py`, `tests/test_capture.py`.
 
+### M4 — Plan de restauración — Hecho
+
+- Construir la vista previa desde el perfil validado y las mismas consultas de
+  sólo lectura de la captura, sin tocar el escritorio.
+- Bloquear explícitamente workspace ocupado, layout no soportado, workspace
+  especial, monitor inutilizable y perfil sin lanzadores resolubles.
+- Escalar y recortar la geometría floating al monitor objetivo y degradar a
+  orden de lanzamiento cuando el árbol no puede reconstruirse.
+- Emitir un token opaco de un solo uso que guarda las condiciones comprobadas
+  y no instrucciones.
+
+**Cierre:** `plan` responde el sobre JSON con vista previa o bloqueo, un plan
+bloqueado no emite token y ninguna consulta modifica Hyprland.
+
+**Evidencia:** `backend/restore.py`, `backend/plan_store.py`,
+`backend/atomic_json.py`, `tests/test_restore_plan.py`,
+`tests/test_plan_store.py`, `tests/test_layoutctl.py`. Verificado además
+contra un Hyprland real: el workspace activo ocupado responde `blocked` con
+`workspace_not_empty` sin escribir ningún plan.
+
+### M5 — Restauración controlada — Próxima sesión
+
+- Comprobar el guardián de compatibilidad de `spec.md` §6.3 que M4 no cubre:
+  versión mínima de Hyprland y soporte exacto de los dispatches usados. Sin un
+  spike que los verifique, no escribir la secuencia de dispatch.
+- Consumir el token, revalidar digest del perfil y condiciones del workspace, y
+  rechazar cualquier aprobación caducada o ya usada.
+- Reproducir `steps` con focus + `preselect` + colocación, reaplicar ratios y
+  posicionar las ventanas floating.
+- Verificar el resultado contra el plan y devolver un informe de éxito parcial
+  sin cerrar ni mover ninguna ventana.
+
+**Cierre:** `restore` ejecuta exclusivamente un plan aprobado y vigente, o
+bloquea sin cambiar nada.
+
 ## Secuencia posterior
 
-1. M4: producir y aprobar planes de sólo lectura.
-2. M5: restaurar tiled, floating y fullscreen permitido, con verificación.
-3. M6: construir la UI sólo sobre las operaciones ya probadas.
-4. M7: endurecer, probar en máquinas reales y publicar la beta.
+1. M5: restaurar tiled y floating con verificación.
+2. M6: construir la UI sólo sobre las operaciones ya probadas.
+3. M7: endurecer, probar en máquinas reales y publicar la beta.
 
 ## Cierre de cada sesión
 

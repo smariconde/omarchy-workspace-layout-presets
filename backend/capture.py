@@ -133,6 +133,17 @@ def _usable_rectangle(monitor: Mapping[str, Any]) -> tuple[float, float, float, 
     return x + left, y + top, usable_width, usable_height, name
 
 
+def usable_workspace_rectangle(active_workspace: Any, monitors: Any) -> tuple[float, float, float, float, str]:
+    """Return the active workspace's usable rectangle as ``(left, top, width, height, connector)``.
+
+    Capture and restore planning must agree on which monitor a workspace lives
+    on and which part of it windows may occupy, so both read it from here.
+    """
+    if not isinstance(monitors, list):
+        raise CaptureError("Hyprland monitors must be an array")
+    return _usable_rectangle(_active_monitor(_object(active_workspace, "active workspace"), monitors))
+
+
 def _normalized_geometry(client: Mapping[str, Any], rectangle: tuple[float, float, float, float, str]) -> tuple[dict[str, float], bool]:
     at = client.get("at")
     size = client.get("size")

@@ -13,10 +13,11 @@ import math
 import os
 import re
 import stat
-import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Mapping
+
+from .atomic_json import AlreadyExistsError, sync_directory, write_json_atomic
 
 
 APP_DIRECTORY = "omarchy-workspace-layout-presets"
@@ -260,37 +261,14 @@ def read_profile(profile_id: str, environment: Mapping[str, str] | None = None) 
 def _write_json_atomic(
     path: Path, profile: Mapping[str, Any], *, create_parent: bool, overwrite: bool = True
 ) -> Path:
+    """Validate a profile, then write it through the shared atomic primitive."""
     validate_profile(profile)
-    directory = path.parent
-    if create_parent:
-        directory.mkdir(mode=0o700, parents=True, exist_ok=True)
-    if not directory.is_dir():
-        raise ProfileError(f"destination directory {str(directory)!r} does not exist")
-    serialized = json.dumps(profile, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
-    descriptor, temporary_name = tempfile.mkstemp(prefix=".profile-", suffix=".tmp", dir=directory)
-    temporary_path = Path(temporary_name)
     try:
-        os.fchmod(descriptor, 0o600)
-        with os.fdopen(descriptor, "w", encoding="utf-8") as profile_file:
-            descriptor = -1
-            profile_file.write(serialized)
-            profile_file.flush()
-            os.fsync(profile_file.fileno())
-        if overwrite:
-            os.replace(temporary_path, path)
-        else:
-            try:
-                os.link(temporary_path, path)
-            except FileExistsError as error:
-                raise ProfileAlreadyExistsError(f"destination {str(path)!r} already exists") from error
-            temporary_path.unlink()
-        _sync_directory(directory)
-    except BaseException:
-        if descriptor != -1:
-            os.close(descriptor)
-        temporary_path.unlink(missing_ok=True)
-        raise
-    return path
+        return write_json_atomic(path, profile, create_parent=create_parent, overwrite=overwrite)
+    except AlreadyExistsError as error:
+        raise ProfileAlreadyExistsError(str(error)) from error
+    except NotADirectoryError as error:
+        raise ProfileError(str(error)) from error
 
 
 def write_profile(profile_id: str, profile: Mapping[str, Any], environment: Mapping[str, str] | None = None) -> Path:
@@ -305,20 +283,6 @@ def create_profile(profile_id: str, profile: Mapping[str, Any], environment: Map
     replace a previous profile that happens to have the same derived ID.
     """
     return _write_json_atomic(profile_path(profile_id, environment), profile, create_parent=True, overwrite=False)
-
-
-def _sync_directory(directory: Path) -> None:
-    """Persist the rename where the platform supports directory fsync."""
-    try:
-        descriptor = os.open(directory, os.O_RDONLY)
-    except OSError:
-        return
-    try:
-        os.fsync(descriptor)
-    except OSError:
-        pass
-    finally:
-        os.close(descriptor)
 
 
 def list_profiles(environment: Mapping[str, str] | None = None) -> list[str]:
@@ -360,7 +324,7 @@ def delete_profile(profile_id: str, environment: Mapping[str, str] | None = None
     if not path.is_file():
         raise ProfileNotFoundError(f"profile {profile_id!r} does not exist")
     path.unlink()
-    _sync_directory(path.parent)
+    sync_directory(path.parent)
 
 
 def _transfer_path(value: str, label: str) -> Path:

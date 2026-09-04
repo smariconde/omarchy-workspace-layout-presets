@@ -5,12 +5,14 @@ safely restoring it only into an empty active workspace.
 
 ## Status
 
-Milestone 3 complete. The repository contains a valid `bar-widget` manifest,
+Milestone 4 complete. The repository contains a valid `bar-widget` manifest,
 an inert widget entry point, a verified Quickshell-to-backend argv bridge,
-validated atomic profile management, fixture-driven safe capture, and pure
-Dwindle tree inference for supported slicing geometries. Capture uses
-JSON-only Hyprland queries and desktop-entry IDs; it does not persist process
-command lines or execute launchers. Restore is intentionally not implemented.
+validated atomic profile management, fixture-driven safe capture, pure Dwindle
+tree inference for supported slicing geometries, and read-only restore
+planning. Capture uses JSON-only Hyprland queries and desktop-entry IDs; it
+does not persist process command lines or execute launchers. `plan` previews a
+restore and refuses a non-empty workspace; `restore` itself is intentionally
+not implemented yet.
 
 ## Safety model
 
@@ -18,7 +20,8 @@ command lines or execute launchers. Restore is intentionally not implemented.
 - No autostart, no automatic restore, and no edit of Omarchy configuration.
 - No shell command strings, `/proc` command lines, documents, browser tabs, or
   credentials in profiles.
-- Restore will be designed to block on a non-empty target workspace.
+- Planning blocks on a non-empty target workspace, and an approved plan is a
+  single-use token that carries verified conditions, never instructions.
 
 ## Development
 

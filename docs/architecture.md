@@ -15,12 +15,15 @@
 │   ├── infer_dwindle.py      # Rectangle-to-binary-tree inference
 │   ├── launchers.py          # Desktop-entry-only launch resolution
 │   ├── restore.py            # Plan, guarded replay, verification
-│   └── profile_store.py      # Schema validation and atomic profile operations
+│   ├── plan_store.py         # Single-use approval tokens for a planned restore
+│   ├── profile_store.py      # Schema validation and atomic profile operations
+│   └── atomic_json.py        # Private, all-or-nothing JSON write primitive
 ├── tests/
 │   ├── fixtures/             # Captured Hyprland and profile JSON fixtures
-│   ├── test_infer_dwindle.py # planned with Milestone 1
+│   ├── test_infer_dwindle.py
 │   ├── test_profile_store.py
-│   └── test_restore_plan.py  # planned with Milestone 2
+│   ├── test_plan_store.py
+│   └── test_restore_plan.py
 └── .github/workflows/tests.yml
 ```
 
@@ -83,12 +86,12 @@ como en error. La forma común es:
 un error de operación, 2 para argumentos inválidos y 3 para un comando
 declarado pero todavía no implementado.
 
-`approved-plan-id` será un token opaco emitido y guardado por `plan` en M4. No
+`approved-plan-id` es un token opaco emitido y guardado por `plan` (ver M4). No
 codifica operaciones, argumentos de lanzamiento ni geometría, y `restore` no
-aceptará otra fuente de instrucciones. El token estará asociado al perfil y al
-workspace objetivo que se comprobó vacío; se invalidará después de usarlo o
-si cambian las condiciones comprobadas. Hasta M4, `plan` y `restore` devuelven
-el error JSON `unimplemented` y no tocan Hyprland.
+aceptará otra fuente de instrucciones. El token está asociado al perfil y al
+workspace objetivo que se comprobó vacío; se invalida al usarlo o al vencer su
+ventana de aprobación. Hasta M5, `restore` devuelve el error JSON
+`unimplemented` y no toca Hyprland.
 
 ### Perfil V1 y operaciones de almacenamiento (M1)
 
@@ -142,6 +145,43 @@ más de diez ventanas de cada tipo bloquean la captura antes de escribir. El ID
 opaco se deriva del nombre visible normalizado a minúsculas ASCII y la creación
 no sobrescribe un perfil existente.
 
+### Plan de restauración (M4)
+
+`restore.py` produce el plan y es el único módulo que albergará sintaxis de
+dispatch de Hyprland. `build_plan` es puro: recibe el perfil validado y las
+mismas cuatro respuestas JSON que usa la captura, y devuelve una vista previa
+sin tocar el escritorio. `plan_profile` añade la lectura del perfil, las
+consultas de sólo lectura y la emisión del token.
+
+Un plan bloquea antes de existir si el layout activo no es `dwindle`
+(`unsupported_layout`), el workspace activo es especial
+(`unsupported_workspace`), no hay un monitor utilizable
+(`monitor_unavailable`), el workspace objetivo contiene alguna ventana
+(`workspace_not_empty`) o ninguna ventana del perfil tiene lanzador seguro
+(`nothing_to_restore`). Un perfil que ya no valida es `error`, no un plan.
+
+El plan expone `entries` (`launch` o `skip` por ventana), `steps`,
+`layoutMode`, `target` y `summary`. `layoutMode` es `tree` sólo cuando el
+perfil es `exact` y todas sus ventanas tiled tienen lanzador; si una ventana
+tiled queda sin resolver, degrada a `order` con la advertencia
+`tree_incomplete` en vez de reconstruir un árbol incompleto. Las ventanas
+floating se escalan desde la geometría normalizada al rectángulo útil actual y
+se recortan para seguir alcanzables (`geometry_clamped`); un monitor distinto
+al guardado añade `monitor_changed`.
+
+`plan_store.py` guarda cada aprobación bajo
+`$XDG_RUNTIME_DIR/omarchy-workspace-layout-presets/plans/<token>.json`, con el
+directorio de datos como único respaldo. El registro contiene sólo `planId`,
+`profileId`, `profileDigest`, `createdAt`, `expiresAt` y el `target`
+comprobado: ninguna operación, argumento ni geometría. `restore` reconstruirá
+el plan desde el perfil validado, comprobará que el digest y las condiciones
+siguen vigentes y consumirá el token, que es de un solo uso y caduca a los 300
+segundos. Un plan bloqueado no emite token.
+
+`atomic_json.py` concentra la escritura privada (`0600`) y atómica que usan
+tanto `profile_store` como `plan_store`; cada almacén conserva sus rutas, su
+validación y su vocabulario de errores.
+
 ### Integración QML → backend (M0.2)
 
 En Omarchy 4.x con Quickshell 0.3.1, `qml/LayoutctlClient.qml` usa
@@ -161,6 +201,11 @@ en modo detached: Quickshell lo termina al recargar o cerrar la shell.
 Las futuras operaciones deben ser métodos explícitos del cliente con arrays
 creados en código. No se añadirá un método genérico que reciba un comando, una
 cadena de shell o argumentos derivados de perfiles.
+
+Como QML ejecuta el archivo por ruta absoluta y no como módulo, `layoutctl.py`
+añade el directorio del plugin a `sys.path` cuando se invoca sin paquete y usa
+importaciones `backend.*` en ambos modos. Una prueba ejecuta el archivo como
+proceso independiente para que esa vía no vuelva a romperse en silencio.
 
 ## Desarrollo
 
