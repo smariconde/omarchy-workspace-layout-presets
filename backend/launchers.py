@@ -9,8 +9,18 @@ from __future__ import annotations
 
 import configparser
 import os
+import re
+import shlex
 from pathlib import Path
 from typing import Iterable, Mapping
+
+
+class LauncherError(ValueError):
+    """Raised when a desktop entry cannot become a safe argv launch."""
+
+
+_DESKTOP_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}")
+_SHELL_EXECUTABLES = {"ash", "bash", "csh", "dash", "fish", "ksh", "sh", "tcsh", "zsh"}
 
 
 def application_directories(environment: Mapping[str, str] | None = None) -> list[Path]:
@@ -91,3 +101,76 @@ def resolve_desktop_id(
             if _matches_window_class(path, window_class) or desktop_id.casefold() == expected_filename:
                 return desktop_id
     return None
+
+
+def _desktop_entry_path(desktop_id: str, directories: Iterable[Path]) -> Path | None:
+    if not isinstance(desktop_id, str) or not _DESKTOP_ID_PATTERN.fullmatch(desktop_id):
+        raise LauncherError("desktop id contains unsupported characters")
+    for directory in directories:
+        candidate = directory / f"{desktop_id}.desktop"
+        try:
+            if candidate.is_file() and candidate.parent == directory:
+                return candidate
+        except OSError:
+            continue
+    return None
+
+
+def desktop_entry_command(
+    desktop_id: str,
+    *,
+    directories: Iterable[Path] | None = None,
+    environment: Mapping[str, str] | None = None,
+) -> list[str]:
+    """Resolve a desktop entry to safe argv without invoking a shell.
+
+    V1 launches only entries with no unresolved desktop-entry field codes. A
+    literal ``%%`` is reduced to ``%``; file, URL and startup field codes are
+    rejected because the profile has no user-approved values for them.
+    """
+    search_directories = list(application_directories(environment) if directories is None else directories)
+    path = _desktop_entry_path(desktop_id, search_directories)
+    if path is None:
+        raise LauncherError(f"desktop entry {desktop_id!r} was not found")
+    parser = configparser.ConfigParser(interpolation=None)
+    parser.optionxform = str
+    try:
+        with path.open(encoding="utf-8") as desktop_file:
+            parser.read_file(desktop_file)
+    except (OSError, UnicodeError, configparser.Error) as error:
+        raise LauncherError(f"desktop entry {desktop_id!r} could not be read") from error
+    if not parser.has_section("Desktop Entry"):
+        raise LauncherError(f"desktop entry {desktop_id!r} has no Desktop Entry section")
+    entry = parser["Desktop Entry"]
+    if entry.get("Type", "Application") != "Application" or entry.get("Hidden", "false").lower() == "true":
+        raise LauncherError(f"desktop entry {desktop_id!r} is not launchable")
+    executable = entry.get("Exec", "").strip()
+    if not executable:
+        raise LauncherError(f"desktop entry {desktop_id!r} has no Exec value")
+    try:
+        arguments = shlex.split(executable, posix=True)
+    except ValueError as error:
+        raise LauncherError(f"desktop entry {desktop_id!r} has invalid Exec quoting") from error
+    if not arguments:
+        raise LauncherError(f"desktop entry {desktop_id!r} has an empty Exec value")
+    if Path(arguments[0]).name.casefold() in _SHELL_EXECUTABLES or "-c" in arguments[1:]:
+        raise LauncherError(f"desktop entry {desktop_id!r} requires unsafe shell execution")
+    normalized: list[str] = []
+    for argument in arguments:
+        if "%" not in argument:
+            normalized.append(argument)
+            continue
+        literal: list[str] = []
+        position = 0
+        while position < len(argument):
+            if argument[position] != "%":
+                literal.append(argument[position])
+                position += 1
+                continue
+            if position + 1 < len(argument) and argument[position + 1] == "%":
+                literal.append("%")
+                position += 2
+                continue
+            raise LauncherError(f"desktop entry {desktop_id!r} contains an unsupported field code")
+        normalized.append("".join(literal))
+    return normalized

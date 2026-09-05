@@ -7,7 +7,7 @@ import unittest
 from datetime import UTC, datetime
 from pathlib import Path
 
-from backend.plan_store import plans_directory, read_plan
+from backend.plan_store import plans_directory, profile_digest, read_plan
 from backend.profile_store import write_profile
 from backend.restore import (
     Plan,
@@ -17,6 +17,7 @@ from backend.restore import (
     compatibility_blockers,
     parse_hyprland_version,
     plan_profile,
+    revalidate_approved_plan,
 )
 
 
@@ -92,6 +93,29 @@ class BuildPlanTests(unittest.TestCase):
     def test_compatibility_guard_does_not_guess_from_a_version_or_layout(self) -> None:
         blocked = compatibility_blockers("not a version", layout={"str": "master"}, lua_bridge_verified=False)
         self.assertEqual([entry["code"] for entry in blocked], ["unsupported_hyprland", "unsupported_layout", "dispatch_unverified"])
+
+    def test_approved_plan_is_rejected_when_profile_or_target_changed(self) -> None:
+        plan = plan_for()
+        record = {
+            "profileId": "coding",
+            "profileDigest": profile_digest(PROFILE),
+            "target": plan.data["target"],
+        }
+
+        revalidate_approved_plan(record, profile_id="coding", profile=PROFILE, current_plan=plan)
+
+        changed_profile = copy.deepcopy(PROFILE)
+        changed_profile["name"] = "Different"
+        with self.assertRaises(PlanBlocked) as profile_error:
+            revalidate_approved_plan(record, profile_id="coding", profile=changed_profile, current_plan=plan)
+        self.assertEqual(codes(profile_error.exception.blocked), ["profile_changed"])
+
+        changed_target = copy.deepcopy(plan.data["target"])
+        changed_target["workspace"]["id"] = 6  # type: ignore[index]
+        changed_plan = Plan({**plan.data, "target": changed_target}, plan.warnings)
+        with self.assertRaises(PlanBlocked) as target_error:
+            revalidate_approved_plan(record, profile_id="coding", profile=PROFILE, current_plan=changed_plan)
+        self.assertEqual(codes(target_error.exception.blocked), ["target_changed"])
 
     def test_empty_workspace_yields_launch_entries_and_the_saved_split_tree(self) -> None:
         plan = plan_for()

@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from backend.launchers import resolve_desktop_id
+from backend.launchers import LauncherError, desktop_entry_command, resolve_desktop_id
 
 
 class LauncherResolutionTests(unittest.TestCase):
@@ -23,3 +23,27 @@ class LauncherResolutionTests(unittest.TestCase):
             (directory / "org.example.App.desktop").write_text("[Desktop Entry]\nType=Application\nExec=app\n", encoding="utf-8")
 
             self.assertEqual(resolve_desktop_id("org.example.app", directories=[directory]), "org.example.App")
+
+    def test_resolves_a_desktop_entry_to_argv_without_expanding_user_data(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = Path(temporary_directory)
+            (directory / "code.desktop").write_text(
+                "[Desktop Entry]\nType=Application\nExec=code --reuse-window %%\n", encoding="utf-8"
+            )
+
+            self.assertEqual(desktop_entry_command("code", directories=[directory]), ["code", "--reuse-window", "%"])
+
+    def test_rejects_field_codes_and_shell_execs(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = Path(temporary_directory)
+            (directory / "files.desktop").write_text(
+                "[Desktop Entry]\nType=Application\nExec=app %U\n", encoding="utf-8"
+            )
+            (directory / "shell.desktop").write_text(
+                "[Desktop Entry]\nType=Application\nExec=sh -c 'echo unsafe'\n", encoding="utf-8"
+            )
+
+            with self.assertRaises(LauncherError):
+                desktop_entry_command("files", directories=[directory])
+            with self.assertRaises(LauncherError):
+                desktop_entry_command("shell", directories=[directory])

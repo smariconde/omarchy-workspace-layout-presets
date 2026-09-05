@@ -19,7 +19,7 @@ import re
 from typing import Any, Callable, Mapping
 
 from .capture import CaptureError, HyprctlReader, SystemHyprctlReader, usable_workspace_rectangle
-from .plan_store import PlanStoreError, issue_plan
+from .plan_store import PlanStoreError, issue_plan, profile_digest
 from .profile_store import ProfileError, read_profile, validate_profile
 
 
@@ -85,6 +85,28 @@ def compatibility_blockers(
             )
         )
     return blocked
+
+
+def revalidate_approved_plan(
+    record: Mapping[str, Any],
+    *,
+    profile_id: str,
+    profile: Mapping[str, Any],
+    current_plan: "Plan",
+) -> None:
+    """Reject an approval whose profile or target conditions changed.
+
+    This check is deliberately pure.  Token consumption belongs immediately
+    before a future executor call, after all live read-only checks succeed.
+    """
+    if not isinstance(record, Mapping):
+        raise PlanError("approved plan record must be an object")
+    if record.get("profileId") != profile_id:
+        raise PlanBlocked([_entry("plan_profile_mismatch", "The approval does not belong to this profile.")])
+    if record.get("profileDigest") != profile_digest(profile):
+        raise PlanBlocked([_entry("profile_changed", "The profile changed after the restore was approved.")])
+    if record.get("target") != current_plan.data.get("target"):
+        raise PlanBlocked([_entry("target_changed", "The active workspace or monitor changed after approval.")])
 
 
 @dataclass(frozen=True)

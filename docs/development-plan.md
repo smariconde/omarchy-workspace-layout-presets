@@ -147,11 +147,23 @@ contra un Hyprland real: el workspace activo ocupado responde `blocked` con
 
 - [x] Comprobar el contrato del guardián de compatibilidad de `spec.md` §6.3:
   versión mínima, layout activo y evidencia separada para el puente Lua.
-- [ ] Ejecutar un spike en una sesión Omarchy real que verifique los dispatches
-  exactos de focus, `preselect`, colocación y ratio. Sin ese spike no escribir
-  la secuencia de dispatch.
-- Consumir el token, revalidar digest del perfil y condiciones del workspace, y
-  rechazar cualquier aprobación caducada o ya usada.
+- [x] Ejecutar un spike en una sesión Omarchy real que verifique los dispatches
+  exactos de focus, `preselect`, colocación y ratio. El focus pasó con el probe
+  QML; `preselect r`, apertura tiled y `splitratio 1.0 exact` pasaron
+  manualmente en el workspace 4.
+- [x] Preparar `qml_hyprland_dispatch_probe.qml`, que verifica de forma no
+  destructiva el puente `hyprctl dispatch` → Lua enfocando el workspace activo.
+- [x] Ejecutar el probe en Omarchy: `hl.dsp.focus(...)` respondió `success: true`.
+- [x] Verificar en un workspace de prueba la geometría floating: `float(set)`,
+  `move({ x = 100, y = 100, relative = false })` y
+  `resize({ x = 600, y = 400, relative = false })` funcionaron en el
+  workspace 4 sin afectar el workspace 1.
+- [x] Resolver `.desktop` a argv en `backend.launchers` sin shell, sin field
+  codes no resueltos y rechazando entradas que requieren `sh -c`.
+- [x] Preparar la revalidación pura del digest del perfil y de las condiciones
+  del workspace antes de consumir un token.
+- [ ] Consumir el token sólo después de esa revalidación, y rechazar cualquier
+  aprobación caducada o ya usada.
 - Reproducir `steps` con focus + `preselect` + colocación, reaplicar ratios y
   posicionar las ventanas floating.
 - Verificar el resultado contra el plan y devolver un informe de éxito parcial
@@ -160,9 +172,12 @@ contra un Hyprland real: el workspace activo ocupado responde `blocked` con
 **Cierre:** `restore` ejecuta exclusivamente un plan aprobado y vigente, o
 bloquea sin cambiar nada.
 
-**Progreso de esta sesión:** `backend.restore` expone el parser de versión y el
-guardián puro `compatibility_blockers`; 67 pruebas pasan. El spike real queda
-pendiente porque esta sesión no tiene un socket Hyprland/Wayland activo.
+**Progreso de esta sesión:** versión/layout y todos los dispatches necesarios
+verificados en Omarchy 0.56.2; `backend.restore` expone el parser de versión,
+el guardián puro `compatibility_blockers`, `revalidate_approved_plan` y el
+probe QML del puente; `backend.launchers` ya prepara argv seguro para el
+lanzamiento. La suite tiene 71 pruebas (2 se omiten sin sesión Wayland).
+Queda pendiente el replay controlado.
 
 ## Secuencia posterior
 
