@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+import re
 from typing import Any, Callable, Mapping
 
 from .capture import CaptureError, HyprctlReader, SystemHyprctlReader, usable_workspace_rectangle
@@ -33,6 +34,57 @@ class PlanBlocked(Exception):
         super().__init__("; ".join(entry["message"] for entry in blocked))
         self.blocked = blocked
         self.warnings = [] if warnings is None else warnings
+
+
+MIN_HYPRLAND_VERSION = (0, 56, 0)
+_VERSION_PATTERN = re.compile(r"(?:Hyprland\s+)?v?(\d+)\.(\d+)\.(\d+)")
+
+
+def parse_hyprland_version(output: str) -> tuple[int, int, int]:
+    """Parse the stable numeric part of ``hyprctl version`` output."""
+    if not isinstance(output, str):
+        raise PlanError("Hyprland version output must be text")
+    match = _VERSION_PATTERN.search(output)
+    if match is None:
+        raise PlanError("Hyprland returned an unparseable version")
+    return tuple(int(part) for part in match.groups())  # type: ignore[return-value]
+
+
+def compatibility_blockers(
+    version_output: str,
+    *,
+    layout: Any,
+    lua_bridge_verified: bool,
+) -> list[dict[str, str]]:
+    """Return explicit restore blockers without probing or changing the desktop.
+
+    Version text alone cannot prove that the exact Lua bridge is installed and
+    usable by the current Omarchy shell.  That fact must come from a verified
+    fixture/live-session probe, never from a version-based guess.
+    """
+    blocked: list[dict[str, str]] = []
+    try:
+        version = parse_hyprland_version(version_output)
+    except PlanError as error:
+        blocked.append(_entry("unsupported_hyprland", str(error)))
+    else:
+        if version < MIN_HYPRLAND_VERSION:
+            blocked.append(
+                _entry(
+                    "unsupported_hyprland",
+                    "Restore requires Hyprland 0.56.0 or newer for the tested Lua bridge.",
+                )
+            )
+    if not isinstance(layout, Mapping) or layout.get("str") != "dwindle":
+        blocked.append(_entry("unsupported_layout", "Restore requires the dwindle layout to be active."))
+    if not lua_bridge_verified:
+        blocked.append(
+            _entry(
+                "dispatch_unverified",
+                "The exact Lua focus, preselect, placement and ratio dispatches have not been verified.",
+            )
+        )
+    return blocked
 
 
 @dataclass(frozen=True)

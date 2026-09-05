@@ -178,6 +178,14 @@ el plan desde el perfil validado, comprobará que el digest y las condiciones
 siguen vigentes y consumirá el token, que es de un solo uso y caduca a los 300
 segundos. Un plan bloqueado no emite token.
 
+Antes de cualquier replay, `restore.py` debe pasar el guardián de compatibilidad:
+la salida de `hyprctl version` debe ser parseable y corresponder a Hyprland
+0.56.0 o superior, el layout debe seguir siendo `dwindle`, y una prueba explícita
+debe haber verificado el puente Lua exacto de la versión de Omarchy en uso.
+La versión por sí sola no prueba que los dispatches estén disponibles; si falta
+esa evidencia, la respuesta es `blocked` con `dispatch_unverified` y no se
+consume ni ejecuta el plan.
+
 `atomic_json.py` concentra la escritura privada (`0600`) y atómica que usan
 tanto `profile_store` como `plan_store`; cada almacén conserva sus rutas, su
 validación y su vocabulario de errores.

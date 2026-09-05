@@ -9,7 +9,15 @@ from pathlib import Path
 
 from backend.plan_store import plans_directory, read_plan
 from backend.profile_store import write_profile
-from backend.restore import Plan, PlanBlocked, PlanError, build_plan, plan_profile
+from backend.restore import (
+    Plan,
+    PlanBlocked,
+    PlanError,
+    build_plan,
+    compatibility_blockers,
+    parse_hyprland_version,
+    plan_profile,
+)
 
 
 def node(identifier: str, wm_class: str, desktop_id: str | None, ordinal: int = 1) -> dict[str, object]:
@@ -70,6 +78,21 @@ def codes(entries: list[dict[str, str]]) -> list[str]:
 
 
 class BuildPlanTests(unittest.TestCase):
+    def test_compatibility_guard_requires_the_tested_version_and_verified_lua_bridge(self) -> None:
+        self.assertEqual(parse_hyprland_version("Hyprland v0.56.1 built from abc"), (0, 56, 1))
+        self.assertEqual(
+            [entry["code"] for entry in compatibility_blockers("Hyprland v0.56.1", layout=LAYOUT, lua_bridge_verified=False)],
+            ["dispatch_unverified"],
+        )
+        self.assertEqual(
+            [entry["code"] for entry in compatibility_blockers("Hyprland v0.55.2", layout=LAYOUT, lua_bridge_verified=True)],
+            ["unsupported_hyprland"],
+        )
+
+    def test_compatibility_guard_does_not_guess_from_a_version_or_layout(self) -> None:
+        blocked = compatibility_blockers("not a version", layout={"str": "master"}, lua_bridge_verified=False)
+        self.assertEqual([entry["code"] for entry in blocked], ["unsupported_hyprland", "unsupported_layout", "dispatch_unverified"])
+
     def test_empty_workspace_yields_launch_entries_and_the_saved_split_tree(self) -> None:
         plan = plan_for()
 

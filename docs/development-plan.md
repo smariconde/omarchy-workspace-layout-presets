@@ -1,6 +1,6 @@
 # Hoja de ruta de desarrollo
 
-**Estado:** M4 completado · próxima sesión: M5
+**Estado:** M5 en curso · próxima sesión: spike de dispatches en sesión Omarchy
 **Objetivo:** una primera beta de perfiles de layout para un workspace
 `dwindle` en Omarchy 4.x.
 
@@ -26,7 +26,7 @@ contrato, registrarla primero en la arquitectura; no esconderla en código.
 | Captura y lanzadores | Hecho | fixtures anonimizadas, adaptador `hyprctl` de sólo lectura y resolución `.desktop` |
 | Inferencia Dwindle | Hecho | inferencia pura de particiones slicing y fallback explícito |
 | Planificación | Hecho | `plan` de sólo lectura, bloqueos explícitos y token de un solo uso |
-| Restauración | Pendiente | `restore` sigue devolviendo `unimplemented` |
+| Restauración | En curso | guardián de compatibilidad implementado; replay sigue bloqueado hasta verificar el puente Lua |
 | Interfaz | Pendiente | componentes reservados |
 | Validación en Omarchy | Pendiente | aún no ejecutada |
 
@@ -41,7 +41,7 @@ La suite actual se ejecuta con `python -m unittest discover -v`.
 | M2 | Captura segura | M1 | Fixtures de Hyprland → perfil válido, sin datos sensibles ni comandos de shell | Hecho |
 | M3 | Inferencia Dwindle | M2 | Árbol exacto para geometrías soportadas; `fallback` explícito para las demás | Hecho |
 | M4 | Plan de restauración | M1–M3 | `plan` es de sólo lectura y bloquea invariablemente workspaces no vacíos | Hecho |
-| M5 | Restauración controlada | M4 | Ejecuta sólo un plan aprobado, verifica el resultado y nunca cierra ventanas | Pendiente |
+| M5 | Restauración controlada | M4 | Ejecuta sólo un plan aprobado, verifica el resultado y nunca cierra ventanas | En curso |
 | M6 | Interfaz V1 | M0, M1, M4, M5 | Guardar, gestionar, previsualizar y restaurar desde el widget accesible | Pendiente |
 | M7 | Hardening y beta | M0–M6 | Suite, validación del plugin, matriz manual y documentación de límites completas | Pendiente |
 
@@ -143,11 +143,13 @@ bloqueado no emite token y ninguna consulta modifica Hyprland.
 contra un Hyprland real: el workspace activo ocupado responde `blocked` con
 `workspace_not_empty` sin escribir ningún plan.
 
-### M5 — Restauración controlada — Próxima sesión
+### M5 — Restauración controlada — En curso
 
-- Comprobar el guardián de compatibilidad de `spec.md` §6.3 que M4 no cubre:
-  versión mínima de Hyprland y soporte exacto de los dispatches usados. Sin un
-  spike que los verifique, no escribir la secuencia de dispatch.
+- [x] Comprobar el contrato del guardián de compatibilidad de `spec.md` §6.3:
+  versión mínima, layout activo y evidencia separada para el puente Lua.
+- [ ] Ejecutar un spike en una sesión Omarchy real que verifique los dispatches
+  exactos de focus, `preselect`, colocación y ratio. Sin ese spike no escribir
+  la secuencia de dispatch.
 - Consumir el token, revalidar digest del perfil y condiciones del workspace, y
   rechazar cualquier aprobación caducada o ya usada.
 - Reproducir `steps` con focus + `preselect` + colocación, reaplicar ratios y
@@ -157,6 +159,10 @@ contra un Hyprland real: el workspace activo ocupado responde `blocked` con
 
 **Cierre:** `restore` ejecuta exclusivamente un plan aprobado y vigente, o
 bloquea sin cambiar nada.
+
+**Progreso de esta sesión:** `backend.restore` expone el parser de versión y el
+guardián puro `compatibility_blockers`; 67 pruebas pasan. El spike real queda
+pendiente porque esta sesión no tiene un socket Hyprland/Wayland activo.
 
 ## Secuencia posterior
 
