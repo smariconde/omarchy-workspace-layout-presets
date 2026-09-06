@@ -36,6 +36,10 @@ class PlanBlocked(Exception):
         self.warnings = [] if warnings is None else warnings
 
 
+class ReplayError(ValueError):
+    """Raised when a validated plan cannot become safe replay actions."""
+
+
 MIN_HYPRLAND_VERSION = (0, 56, 0)
 _VERSION_PATTERN = re.compile(r"(?:Hyprland\s+)?v?(\d+)\.(\d+)\.(\d+)")
 
@@ -115,6 +119,152 @@ class Plan:
 
     data: dict[str, Any]
     warnings: list[dict[str, str]] = field(default_factory=list)
+
+
+def _lua_string(value: str) -> str:
+    """Encode a value as a Lua double-quoted string without interpolation."""
+    escaped: list[str] = []
+    for character in value:
+        if character == "\\":
+            escaped.append("\\\\")
+        elif character == '"':
+            escaped.append('\\"')
+        elif character == "\n":
+            escaped.append("\\n")
+        elif character == "\r":
+            escaped.append("\\r")
+        elif character == "\t":
+            escaped.append("\\t")
+        elif ord(character) < 32:
+            raise ReplayError("window class contains an unsupported control character")
+        else:
+            escaped.append(character)
+    return '"' + "".join(escaped) + '"'
+
+
+def _focus_dispatch(wm_class: str) -> list[str]:
+    escaped_class = re.escape(wm_class)
+    selector = f"class:^{escaped_class}$"
+    expression = f"hl.dsp.focus({{ window = {_lua_string(selector)} }})"
+    return ["hyprctl", "dispatch", expression]
+
+
+def _layout_dispatch(message: str) -> list[str]:
+    return ["hyprctl", "dispatch", f"hl.dsp.layout({_lua_string(message)})"]
+
+
+def _window_dispatch(expression: str) -> list[str]:
+    return ["hyprctl", "dispatch", expression]
+
+
+def _number(value: Any, label: str) -> str:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ReplayError(f"{label} must be numeric")
+    return format(value, ".17g")
+
+
+def build_replay_actions(
+    profile: Mapping[str, Any],
+    plan: Mapping[str, Any],
+    *,
+    launcher_resolver: Callable[[str], list[str]],
+) -> list[dict[str, Any]]:
+    """Compile a plan to typed argv actions without executing them.
+
+    The resulting dispatches are complete argv arrays. No shell source is
+    created, and profile strings are only placed into escaped Lua literals.
+    """
+    try:
+        validate_profile(profile)
+    except ProfileError as error:
+        raise ReplayError(f"profile cannot be replayed: {error}") from error
+    if not isinstance(plan, Mapping) or plan.get("layoutMode") not in {"tree", "order"}:
+        raise ReplayError("replay plan has an unsupported layout mode")
+    raw_entries = plan.get("entries")
+    if not isinstance(raw_entries, list):
+        raise ReplayError("replay plan entries must be a list")
+    entries = {entry.get("windowId"): entry for entry in raw_entries if isinstance(entry, Mapping)}
+    profile_nodes = {
+        node["id"]: node
+        for node in [*profile["tiled"]["nodes"], *profile["floating"]]
+    }
+    actions: list[dict[str, Any]] = []
+
+    def launch(window_id: str, placement: str) -> None:
+        entry = entries.get(window_id)
+        node = profile_nodes.get(window_id)
+        if not isinstance(entry, Mapping) or entry.get("kind") != "launch" or not isinstance(node, Mapping):
+            raise ReplayError(f"window {window_id!r} has no safe launch action")
+        desktop_id = entry.get("desktopId")
+        if not isinstance(desktop_id, str):
+            raise ReplayError(f"window {window_id!r} has no desktop id")
+        try:
+            argv = launcher_resolver(desktop_id)
+        except Exception as error:
+            raise ReplayError(f"could not resolve launcher for {window_id!r}") from error
+        if not isinstance(argv, list) or not argv or not all(isinstance(argument, str) and argument for argument in argv):
+            raise ReplayError(f"launcher for {window_id!r} did not return a valid argv")
+        actions.append({"op": "launch", "windowId": window_id, "placement": placement, "argv": list(argv)})
+
+    for step in plan.get("steps", []):
+        if not isinstance(step, Mapping):
+            raise ReplayError("replay plan contains a malformed step")
+        operation = step.get("op")
+        if operation in {"anchor", "append"}:
+            window_id = step.get("windowId")
+            if not isinstance(window_id, str):
+                raise ReplayError("replay launch step has no window id")
+            launch(window_id, "tiled")
+        elif operation == "split":
+            focus = step.get("focus")
+            direction = step.get("direction")
+            new_window = step.get("new")
+            if not isinstance(focus, str) or not isinstance(new_window, str) or direction not in {"left", "right", "up", "down"}:
+                raise ReplayError("replay split step is malformed")
+            focus_node = profile_nodes.get(focus)
+            if not isinstance(focus_node, Mapping):
+                raise ReplayError(f"split focus {focus!r} is not in the profile")
+            wm_class = focus_node["app"]["wmClass"]
+            actions.append({"op": "dispatch", "argv": _focus_dispatch(wm_class), "windowId": focus})
+            direction_code = {"left": "l", "right": "r", "up": "u", "down": "d"}[direction]
+            actions.append({"op": "dispatch", "argv": _layout_dispatch(f"preselect {direction_code}")})
+            launch(new_window, "tiled")
+            actions.append(
+                {
+                    "op": "dispatch",
+                    "argv": _layout_dispatch(f"splitratio {_number(step.get('ratio'), 'split ratio')} exact"),
+                    "windowId": new_window,
+                }
+            )
+        else:
+            raise ReplayError(f"replay plan contains unsupported operation {operation!r}")
+
+    for node in profile["floating"]:
+        window_id = node["id"]
+        launch(window_id, "floating")
+        geometry = next(entry.get("geometry") for entry in raw_entries if entry.get("windowId") == window_id)
+        if not isinstance(geometry, Mapping):
+            raise ReplayError(f"floating window {window_id!r} has no planned geometry")
+        actions.extend(
+            [
+                {"op": "dispatch", "argv": _window_dispatch('hl.dsp.window.float({ action = "set" })'), "windowId": window_id},
+                {
+                    "op": "dispatch",
+                    "argv": _window_dispatch(
+                        f"hl.dsp.window.move({{ x = {geometry['x']}, y = {geometry['y']}, relative = false }})"
+                    ),
+                    "windowId": window_id,
+                },
+                {
+                    "op": "dispatch",
+                    "argv": _window_dispatch(
+                        f"hl.dsp.window.resize({{ x = {geometry['width']}, y = {geometry['height']}, relative = false }})"
+                    ),
+                    "windowId": window_id,
+                },
+            ]
+        )
+    return actions
 
 
 def _entry(code: str, message: str) -> dict[str, str]:

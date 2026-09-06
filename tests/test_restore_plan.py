@@ -15,6 +15,7 @@ from backend.restore import (
     PlanError,
     build_plan,
     compatibility_blockers,
+    build_replay_actions,
     parse_hyprland_version,
     plan_profile,
     revalidate_approved_plan,
@@ -79,6 +80,56 @@ def codes(entries: list[dict[str, str]]) -> list[str]:
 
 
 class BuildPlanTests(unittest.TestCase):
+    def test_replay_compiler_emits_only_explicit_argv_actions(self) -> None:
+        plan = plan_for()
+        actions = build_replay_actions(
+            PROFILE,
+            plan.data,
+            launcher_resolver=lambda desktop_id: [desktop_id, "--safe"],
+        )
+
+        self.assertEqual(
+            actions,
+            [
+                {"op": "launch", "windowId": "window-1", "placement": "tiled", "argv": ["code", "--safe"]},
+                {
+                    "op": "dispatch",
+                    "argv": [
+                        "hyprctl",
+                        "dispatch",
+                        'hl.dsp.focus({ window = "class:^Code$" })',
+                    ],
+                    "windowId": "window-1",
+                },
+                {"op": "dispatch", "argv": ["hyprctl", "dispatch", 'hl.dsp.layout("preselect r")']},
+                {"op": "launch", "windowId": "window-2", "placement": "tiled", "argv": ["kitty", "--safe"]},
+                {
+                    "op": "dispatch",
+                    "argv": ["hyprctl", "dispatch", 'hl.dsp.layout("splitratio 0.59999999999999998 exact")'],
+                    "windowId": "window-2",
+                },
+                {"op": "launch", "windowId": "window-3", "placement": "floating", "argv": ["pavucontrol", "--safe"]},
+                {
+                    "op": "dispatch",
+                    "argv": ["hyprctl", "dispatch", 'hl.dsp.window.float({ action = "set" })'],
+                    "windowId": "window-3",
+                },
+                {
+                    "op": "dispatch",
+                    "argv": ["hyprctl", "dispatch", "hl.dsp.window.move({ x = 960, y = 256, relative = false })"],
+                    "windowId": "window-3",
+                },
+                {
+                    "op": "dispatch",
+                    "argv": ["hyprctl", "dispatch", "hl.dsp.window.resize({ x = 480, y = 512, relative = false })"],
+                    "windowId": "window-3",
+                },
+            ],
+        )
+        for action in actions:
+            if action["op"] == "launch":
+                self.assertNotIn("shell", action["argv"])
+
     def test_compatibility_guard_requires_the_tested_version_and_verified_lua_bridge(self) -> None:
         self.assertEqual(parse_hyprland_version("Hyprland v0.56.1 built from abc"), (0, 56, 1))
         self.assertEqual(

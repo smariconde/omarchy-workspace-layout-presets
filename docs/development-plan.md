@@ -160,6 +160,8 @@ contra un Hyprland real: el workspace activo ocupado responde `blocked` con
   workspace 4 sin afectar el workspace 1.
 - [x] Resolver `.desktop` a argv en `backend.launchers` sin shell, sin field
   codes no resueltos y rechazando entradas que requieren `sh -c`.
+- [x] Compilar el plan a acciones explícitas de replay en `backend.restore`
+  sin ejecutar todavía: lanzamientos argv y dispatches Lua para tiled/floating.
 - [x] Preparar la revalidación pura del digest del perfil y de las condiciones
   del workspace antes de consumir un token.
 - [ ] Consumir el token sólo después de esa revalidación, y rechazar cualquier
@@ -176,7 +178,8 @@ bloquea sin cambiar nada.
 verificados en Omarchy 0.56.2; `backend.restore` expone el parser de versión,
 el guardián puro `compatibility_blockers`, `revalidate_approved_plan` y el
 probe QML del puente; `backend.launchers` ya prepara argv seguro para el
-lanzamiento. La suite tiene 71 pruebas (2 se omiten sin sesión Wayland).
+lanzamiento y `backend.restore` compila acciones sin shell. La suite tiene 72
+pruebas (2 se omiten sin sesión Wayland).
 Queda pendiente el replay controlado.
 
 ## Secuencia posterior

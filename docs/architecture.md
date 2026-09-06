@@ -186,6 +186,15 @@ La versión por sí sola no prueba que los dispatches estén disponibles; si fal
 esa evidencia, la respuesta es `blocked` con `dispatch_unverified` y no se
 consume ni ejecuta el plan.
 
+`build_replay_actions` compila un plan validado en acciones explícitas antes
+de cualquier I/O: cada lanzamiento es un `argv` proveniente de un `.desktop` y
+cada dispatch es un array con tres elementos: `hyprctl`, `dispatch` y la
+expresión Lua.
+La compilación escapa las cadenas Lua y nunca produce shell source. El futuro
+ejecutor consumirá estas acciones sólo después de revalidar el token, el perfil
+y el workspace; una acción fallida se reportará como resultado parcial y no
+provocará rollback destructivo.
+
 `atomic_json.py` concentra la escritura privada (`0600`) y atómica que usan
 tanto `profile_store` como `plan_store`; cada almacén conserva sus rutas, su
 validación y su vocabulario de errores.
