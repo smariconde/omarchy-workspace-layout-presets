@@ -7,7 +7,7 @@ import unittest
 from datetime import UTC, datetime
 from pathlib import Path
 
-from backend.plan_store import plans_directory, profile_digest, read_plan
+from backend.plan_store import PlanNotFoundError, plans_directory, profile_digest, read_plan
 from backend.profile_store import write_profile
 from backend.restore import (
     Plan,
@@ -19,6 +19,7 @@ from backend.restore import (
     parse_hyprland_version,
     plan_profile,
     revalidate_approved_plan,
+    restore_approved_plan,
 )
 
 
@@ -91,7 +92,7 @@ class BuildPlanTests(unittest.TestCase):
         self.assertEqual(
             actions,
             [
-                {"op": "launch", "windowId": "window-1", "placement": "tiled", "argv": ["code", "--safe"]},
+                {"op": "launch", "windowId": "window-1", "placement": "tiled", "wmClass": "Code", "argv": ["code", "--safe"]},
                 {
                     "op": "dispatch",
                     "argv": [
@@ -102,13 +103,13 @@ class BuildPlanTests(unittest.TestCase):
                     "windowId": "window-1",
                 },
                 {"op": "dispatch", "argv": ["hyprctl", "dispatch", 'hl.dsp.layout("preselect r")']},
-                {"op": "launch", "windowId": "window-2", "placement": "tiled", "argv": ["kitty", "--safe"]},
+                {"op": "launch", "windowId": "window-2", "placement": "tiled", "wmClass": "kitty", "argv": ["kitty", "--safe"]},
                 {
                     "op": "dispatch",
                     "argv": ["hyprctl", "dispatch", 'hl.dsp.layout("splitratio 0.59999999999999998 exact")'],
                     "windowId": "window-2",
                 },
-                {"op": "launch", "windowId": "window-3", "placement": "floating", "argv": ["pavucontrol", "--safe"]},
+                {"op": "launch", "windowId": "window-3", "placement": "floating", "wmClass": "Pavucontrol", "argv": ["pavucontrol", "--safe"]},
                 {
                     "op": "dispatch",
                     "argv": ["hyprctl", "dispatch", 'hl.dsp.window.float({ action = "set" })'],
@@ -312,6 +313,75 @@ class PlanProfileTests(unittest.TestCase):
             plan_profile("coding", reader=reader, environment=self.environment)
 
         self.assertFalse(plans_directory(self.environment).exists())
+
+    def test_restore_revalidates_before_consuming_the_token(self) -> None:
+        data, _ = plan_profile(
+            "coding",
+            reader=self.Reader(),
+            environment=self.environment,
+            now=datetime(2026, 9, 4, 12, 0, tzinfo=UTC),
+        )
+        with self.assertRaises(PlanBlocked) as raised:
+            restore_approved_plan(
+                data["planId"],
+                reader=self.Reader(clients=[{"workspace": {"id": 5, "name": "5"}}]),
+                executor=object(),  # The safety check fails before the executor can be touched.
+                version_output="Hyprland v0.56.2",
+                lua_bridge_verified=True,
+                launcher_resolver=lambda desktop_id: [desktop_id],
+                environment=self.environment,
+                now=datetime(2026, 9, 4, 12, 1, tzinfo=UTC),
+            )
+
+        self.assertEqual(codes(raised.exception.blocked), ["workspace_not_empty"])
+        self.assertEqual(read_plan(data["planId"], self.environment, datetime(2026, 9, 4, 12, 1, tzinfo=UTC))["profileId"], "coding")
+
+    def test_restore_consumes_once_then_reports_verified_result(self) -> None:
+        data, _ = plan_profile(
+            "coding",
+            reader=self.Reader(),
+            environment=self.environment,
+            now=datetime(2026, 9, 4, 12, 0, tzinfo=UTC),
+        )
+
+        class Executor:
+            def __init__(self) -> None:
+                self.operations: list[tuple[str, object]] = []
+
+            def launch(self, argv: list[str]) -> None:
+                self.operations.append(("launch", argv))
+
+            def dispatch(self, argv: list[str]) -> None:
+                self.operations.append(("dispatch", argv))
+
+            def focus_target(self) -> None:
+                self.operations.append(("focus_target", None))
+
+            def wait_for_window(self, window_id: str, wm_class: str, placement: str) -> bool:
+                self.operations.append(("wait", (window_id, wm_class, placement)))
+                return True
+
+            def verify(self, plan: dict[str, object]) -> dict[str, object]:
+                self.operations.append(("verify", plan["target"]))
+                return {"matched": 3, "mismatched": 0}
+
+        executor = Executor()
+        result = restore_approved_plan(
+            data["planId"],
+            reader=self.Reader(),
+            executor=executor,
+            version_output="Hyprland v0.56.2",
+            lua_bridge_verified=True,
+            launcher_resolver=lambda desktop_id: [desktop_id],
+            environment=self.environment,
+            now=datetime(2026, 9, 4, 12, 1, tzinfo=UTC),
+        )
+
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["verification"], {"matched": 3, "mismatched": 0})
+        self.assertEqual(result["executedActions"], 9)
+        with self.assertRaises(PlanNotFoundError):
+            read_plan(data["planId"], self.environment, datetime(2026, 9, 4, 12, 1, tzinfo=UTC))
 
 
 if __name__ == "__main__":

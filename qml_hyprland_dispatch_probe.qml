@@ -10,6 +10,13 @@ ShellRoot {
 
     property bool finished: false
 
+    function localFilePath(url) {
+        const encoded = String(url)
+        const filePrefix = "file://"
+        if (!encoded.startsWith(filePrefix)) return ""
+        return decodeURIComponent(encoded.slice(filePrefix.length))
+    }
+
     function finish(success, reason) {
         if (finished) return
         finished = true
@@ -62,7 +69,41 @@ ShellRoot {
 
         onExited: function(exitCode) {
             const output = (dispatchStdout.text || "") + (dispatchStderr.text || "")
-            root.finish(exitCode === 0, exitCode === 0 ? "ok" : "dispatch failed: " + output.trim())
+            if (exitCode !== 0) {
+                root.finish(false, "dispatch failed: " + output.trim())
+                return
+            }
+            const workspace = JSON.parse(workspaceStdout.text)
+            attestationProcess.command = [
+                "python3",
+                root.localFilePath(Qt.resolvedUrl("backend/bridge_attestation.py")),
+                "record",
+                String(workspace.id)
+            ]
+            attestationProcess.running = true
+        }
+    }
+
+    Process {
+        id: attestationProcess
+        command: []
+        stdout: StdioCollector { id: attestationStdout; waitForEnd: true }
+        stderr: StdioCollector { id: attestationStderr; waitForEnd: true }
+
+        onExited: function(exitCode) {
+            const output = (attestationStdout.text || "").trim()
+            if (exitCode !== 0) {
+                root.finish(false, "attestation failed: " + output + " " + (attestationStderr.text || "").trim())
+                return
+            }
+            let record = null
+            try {
+                record = JSON.parse(output)
+            } catch (error) {
+                root.finish(false, "attestation returned invalid JSON")
+                return
+            }
+            root.finish(record !== null && record.schemaVersion === 1, "ok")
         }
     }
 

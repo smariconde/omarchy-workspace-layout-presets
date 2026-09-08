@@ -90,8 +90,14 @@ declarado pero todavía no implementado.
 codifica operaciones, argumentos de lanzamiento ni geometría, y `restore` no
 aceptará otra fuente de instrucciones. El token está asociado al perfil y al
 workspace objetivo que se comprobó vacío; se invalida al usarlo o al vencer su
-ventana de aprobación. Hasta M5, `restore` devuelve el error JSON
-`unimplemented` y no toca Hyprland.
+ventana de aprobación. `restore` reconstruye el plan desde el perfil validado,
+revalida el destino y el guardián de compatibilidad, y delega los cambios a un
+executor de replay inyectable. El executor predeterminado usa arrays de
+argumentos con `shell=False`; si no existe evidencia separada del puente Lua,
+la operación permanece bloqueada y no toca Hyprland. El probe QML escribe una
+atestación privada y efímera bajo `$XDG_RUNTIME_DIR`, con versión, tipo de
+puente, workspace del probe y vencimiento; `restore` exige que siga vigente y
+que coincida con la versión actual.
 
 ### Perfil V1 y operaciones de almacenamiento (M1)
 
@@ -190,10 +196,11 @@ consume ni ejecuta el plan.
 de cualquier I/O: cada lanzamiento es un `argv` proveniente de un `.desktop` y
 cada dispatch es un array con tres elementos: `hyprctl`, `dispatch` y la
 expresión Lua.
-La compilación escapa las cadenas Lua y nunca produce shell source. El futuro
-ejecutor consumirá estas acciones sólo después de revalidar el token, el perfil
-y el workspace; una acción fallida se reportará como resultado parcial y no
-provocará rollback destructivo.
+La compilación escapa las cadenas Lua y nunca produce shell source. El executor
+consume estas acciones sólo después de revalidar el token, el perfil y el
+workspace; una acción fallida se reporta como resultado parcial y no provoca
+rollback destructivo. Antes de cada acción vuelve a enfocar el workspace
+objetivo y espera la ventana lanzada mediante consultas JSON de clientes.
 
 `atomic_json.py` concentra la escritura privada (`0600`) y atómica que usan
 tanto `profile_store` como `plan_store`; cada almacén conserva sus rutas, su
@@ -210,14 +217,17 @@ shell. El único comando expuesto por ahora es el array fijo:
 ```
 
 La ruta se resuelve desde el propio archivo QML y se acepta sólo si es una URL
-`file:` local; `layoutctl.py` es ejecutable. `StdioCollector` espera el fin de
+`file:` local; `layoutctl.py` y `bridge_attestation.py` son ejecutables por
+ruta. `StdioCollector` espera el fin de
 stdout y el manejador `onExited` entrega a QML el código de salida, el objeto
 JSON ya parseado (o `null` si no es válido) y stderr. El proceso no se ejecuta
 en modo detached: Quickshell lo termina al recargar o cerrar la shell.
 
 Las futuras operaciones deben ser métodos explícitos del cliente con arrays
 creados en código. No se añadirá un método genérico que reciba un comando, una
-cadena de shell o argumentos derivados de perfiles.
+cadena de shell o argumentos derivados de perfiles. El probe del puente usa
+el mismo límite: consulta el workspace, ejecuta sólo el dispatch Lua fijo de
+focus y llama al helper de atestación con el ID entero validado.
 
 Como QML ejecuta el archivo por ruta absoluta y no como módulo, `layoutctl.py`
 añade el directorio del plugin a `sys.path` cuando se invoca sin paquete y usa

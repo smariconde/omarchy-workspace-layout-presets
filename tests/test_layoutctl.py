@@ -36,12 +36,16 @@ class LayoutctlContractTests(unittest.TestCase):
             },
         )
 
-    def test_unimplemented_desktop_commands_are_not_silently_accepted(self) -> None:
-        exit_code, response = layoutctl.execute(["restore", "0123456789abcdef0123456789abcdef"])
+    def test_restore_returns_the_structured_replay_result(self) -> None:
+        replay = {"status": "ok", "planId": "0123456789abcdef0123456789abcdef", "executedActions": 1}
+        exit_code, response = layoutctl.execute(
+            ["restore", "0123456789abcdef0123456789abcdef"],
+            restorer=lambda plan_id: replay,
+        )
 
-        self.assertEqual(exit_code, layoutctl.EXIT_UNIMPLEMENTED)
-        self.assertEqual(response["status"], "error")
-        self.assertEqual(response["error"]["code"], "unimplemented")
+        self.assertEqual(exit_code, layoutctl.EXIT_OK)
+        self.assertEqual(response["status"], "ok")
+        self.assertEqual(response["data"], replay)
 
     def test_plan_returns_its_preview_and_warnings_without_changing_anything(self) -> None:
         preview = {"planId": "0123456789abcdef0123456789abcdef", "profileId": "coding", "layoutMode": "tree"}

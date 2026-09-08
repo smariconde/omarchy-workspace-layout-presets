@@ -20,7 +20,9 @@ if __package__ in (None, ""):  # pragma: no cover - taken only by `backend/layou
     # before the package imports below; `python -m backend.layoutctl` skips this.
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from backend.capture import CaptureError, capture_current_workspace
+from backend.capture import CaptureError, SystemHyprctlReader, capture_current_workspace
+from backend.bridge_attestation import AttestationError, read_attestation, validate_attestation
+from backend.launchers import desktop_entry_command
 from backend.profile_store import (
     ProfileAlreadyExistsError,
     ProfileError,
@@ -32,7 +34,13 @@ from backend.profile_store import (
     read_profile,
     rename_profile,
 )
-from backend.restore import PlanBlocked, PlanError, plan_profile
+from backend.restore import (
+    PlanBlocked,
+    PlanError,
+    SystemReplayExecutor,
+    plan_profile,
+    restore_approved_plan,
+)
 
 
 CONTRACT_VERSION = 1
@@ -137,11 +145,38 @@ def result_unimplemented(command: str) -> dict[str, Any]:
     return result_error("unimplemented", f"{command} is not available yet")
 
 
+def restore_command(plan_id: str) -> dict[str, Any]:
+    """Run restore with the real boundaries and a fresh probe attestation."""
+    reader = SystemHyprctlReader()
+    try:
+        attestation = read_attestation()
+        version_output = reader.read_text("version")
+        validate_attestation(attestation, version_output)
+    except AttestationError as error:
+        raise PlanBlocked([{"code": "dispatch_unverified", "message": str(error)}]) from error
+    active_workspace = reader.read_json("activeworkspace")
+    if not isinstance(active_workspace, Mapping) or not isinstance(active_workspace.get("id"), int):
+        raise PlanError("Hyprland returned an invalid active workspace")
+    executor = SystemReplayExecutor(
+        target_workspace_id=active_workspace["id"],
+        reader=reader,
+    )
+    return restore_approved_plan(
+        plan_id,
+        reader=reader,
+        executor=executor,
+        version_output=version_output,
+        lua_bridge_verified=True,
+        launcher_resolver=desktop_entry_command,
+    )
+
+
 def execute(
     arguments: list[str],
     profile_lister: Callable[[], list[str]] = list_profiles,
     capture_workspace: Callable[[str], tuple[str, dict[str, Any]]] = capture_current_workspace,
     planner: Callable[[str], tuple[dict[str, Any], list[dict[str, str]]]] = plan_profile,
+    restorer: Callable[[str], dict[str, Any]] = restore_command,
 ) -> tuple[int, dict[str, Any]]:
     """Execute one command and return its exit code plus JSON-safe response data."""
     try:
@@ -166,6 +201,20 @@ def execute(
             return EXIT_ERROR, result_blocked(blocked.blocked, warnings=blocked.warnings)
         except PlanError as error:
             return EXIT_ERROR, result_error("plan_error", str(error))
+        except ProfileError as error:
+            return EXIT_ERROR, result_error("profile_error", str(error))
+        except CaptureError as error:
+            return EXIT_ERROR, result_error("hyprland_error", str(error))
+        except OSError as error:
+            return EXIT_ERROR, result_error("storage_error", str(error))
+
+    if args.command == "restore":
+        try:
+            return EXIT_OK, result_ok(restorer(args.approved_plan_id))
+        except PlanBlocked as blocked:
+            return EXIT_ERROR, result_blocked(blocked.blocked, warnings=blocked.warnings)
+        except PlanError as error:
+            return EXIT_ERROR, result_error("restore_error", str(error))
         except ProfileError as error:
             return EXIT_ERROR, result_error("profile_error", str(error))
         except CaptureError as error:

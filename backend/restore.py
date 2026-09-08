@@ -16,10 +16,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 import re
-from typing import Any, Callable, Mapping
+import subprocess
+import time
+from typing import Any, Callable, Mapping, Protocol
 
 from .capture import CaptureError, HyprctlReader, SystemHyprctlReader, usable_workspace_rectangle
-from .plan_store import PlanStoreError, issue_plan, profile_digest
+from .plan_store import PlanStoreError, consume_plan, issue_plan, profile_digest, read_plan
 from .profile_store import ProfileError, read_profile, validate_profile
 
 
@@ -38,6 +40,127 @@ class PlanBlocked(Exception):
 
 class ReplayError(ValueError):
     """Raised when a validated plan cannot become safe replay actions."""
+
+
+class ReplayExecutor(Protocol):
+    """Injectable boundary for the state-changing part of a restore."""
+
+    def launch(self, argv: list[str]) -> None: ...
+
+    def dispatch(self, argv: list[str]) -> None: ...
+
+    def focus_target(self) -> None: ...
+
+    def wait_for_window(self, window_id: str, wm_class: str, placement: str) -> bool: ...
+
+    def verify(self, plan: Mapping[str, Any]) -> Mapping[str, Any]: ...
+
+
+class SystemReplayExecutor:
+    """Execute already-validated argv actions against one target workspace."""
+
+    def __init__(
+        self,
+        *,
+        target_workspace_id: int,
+        reader: HyprctlReader,
+        runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
+        clock: Callable[[], float] = time.monotonic,
+        sleeper: Callable[[float], None] = time.sleep,
+        timeout: float = 5.0,
+        poll_interval: float = 0.1,
+    ) -> None:
+        self._target_workspace_id = target_workspace_id
+        self._reader = reader
+        self._runner = runner
+        self._clock = clock
+        self._sleeper = sleeper
+        self._timeout = timeout
+        self._poll_interval = poll_interval
+
+    def _run(self, argv: list[str]) -> None:
+        if not argv or not all(isinstance(argument, str) and argument for argument in argv):
+            raise ReplayError("executor received an invalid argv")
+        try:
+            completed = self._runner(
+                argv,
+                capture_output=True,
+                text=True,
+                timeout=self._timeout,
+                check=False,
+                shell=False,
+            )
+        except (OSError, subprocess.TimeoutExpired) as error:
+            raise ReplayError(f"command failed to execute: {argv[0]!r}") from error
+        if completed.returncode != 0:
+            raise ReplayError(f"command returned exit code {completed.returncode}: {argv[0]!r}")
+
+    def launch(self, argv: list[str]) -> None:
+        self._run(argv)
+
+    def dispatch(self, argv: list[str]) -> None:
+        self._run(argv)
+
+    def focus_target(self) -> None:
+        self._run(
+            [
+                "hyprctl",
+                "dispatch",
+                f'hl.dsp.focus({{ workspace = "{self._target_workspace_id}" }})',
+            ]
+        )
+
+    def wait_for_window(self, window_id: str, wm_class: str, placement: str) -> bool:
+        del window_id, placement
+        deadline = self._clock() + self._timeout
+        while self._clock() <= deadline:
+            clients = self._reader.read_json("clients")
+            if isinstance(clients, list) and any(
+                isinstance(client, Mapping)
+                and isinstance(client.get("class"), str)
+                and client["class"].casefold() == wm_class.casefold()
+                and isinstance(client.get("workspace"), Mapping)
+                and client["workspace"].get("id") == self._target_workspace_id
+                for client in clients
+            ):
+                return True
+            self._sleeper(self._poll_interval)
+        return False
+
+    def verify(self, plan: Mapping[str, Any]) -> Mapping[str, Any]:
+        clients = self._reader.read_json("clients")
+        target = plan["target"]
+        if not isinstance(target, Mapping) or not isinstance(target.get("workspace"), Mapping):
+            raise ReplayError("plan target is malformed during verification")
+        workspace_id = target["workspace"].get("id")
+        if workspace_id != self._target_workspace_id or not isinstance(clients, list):
+            raise ReplayError("target workspace changed during verification")
+        actual = [
+            client
+            for client in clients
+            if isinstance(client, Mapping)
+            and isinstance(client.get("workspace"), Mapping)
+            and client["workspace"].get("id") == workspace_id
+        ]
+        expected = [entry for entry in plan.get("entries", []) if entry.get("kind") == "launch"]
+        remaining = list(actual)
+        matched = 0
+        for entry in expected:
+            for index, client in enumerate(remaining):
+                if (
+                    isinstance(client.get("class"), str)
+                    and isinstance(entry.get("wmClass"), str)
+                    and client["class"].casefold() == entry["wmClass"].casefold()
+                ):
+                    matched += 1
+                    remaining.pop(index)
+                    break
+        return {
+            "expected": len(expected),
+            "matched": matched,
+            "unmatched": len(expected) - matched,
+            "unexpected": len(remaining),
+        }
 
 
 MIN_HYPRLAND_VERSION = (0, 56, 0)
@@ -204,7 +327,15 @@ def build_replay_actions(
             raise ReplayError(f"could not resolve launcher for {window_id!r}") from error
         if not isinstance(argv, list) or not argv or not all(isinstance(argument, str) and argument for argument in argv):
             raise ReplayError(f"launcher for {window_id!r} did not return a valid argv")
-        actions.append({"op": "launch", "windowId": window_id, "placement": placement, "argv": list(argv)})
+        actions.append(
+            {
+                "op": "launch",
+                "windowId": window_id,
+                "placement": placement,
+                "wmClass": node["app"]["wmClass"],
+                "argv": list(argv),
+            }
+        )
 
     for step in plan.get("steps", []):
         if not isinstance(step, Mapping):
@@ -471,3 +602,110 @@ def plan_profile(
         raise PlanError(f"could not record the approved plan: {error}") from error
     data = {"planId": plan_id, "profileId": profile_id, "expiresAt": record["expiresAt"], **plan.data}
     return data, plan.warnings
+
+
+def restore_approved_plan(
+    plan_id: str,
+    *,
+    reader: HyprctlReader,
+    executor: ReplayExecutor,
+    version_output: str,
+    lua_bridge_verified: bool,
+    launcher_resolver: Callable[[str], list[str]],
+    environment: Mapping[str, str] | None = None,
+    profile_loader: Callable[..., dict[str, Any]] = read_profile,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """Revalidate and execute one approved plan through an injected executor.
+
+    All reads, compatibility checks, and action compilation happen before the
+    token is consumed.  Once consumed, failures are reported as partial
+    results; no rollback or cleanup action is attempted.
+    """
+    try:
+        record = read_plan(plan_id, environment, now)
+    except PlanStoreError as error:
+        raise PlanError(f"could not read approved plan: {error}") from error
+
+    profile_id = record.get("profileId")
+    if not isinstance(profile_id, str):
+        raise PlanError("approved plan has no valid profile id")
+    profile = profile_loader(profile_id, environment)
+    source = reader
+    active_workspace = source.read_json("activeworkspace")
+    clients = source.read_json("clients")
+    monitors = source.read_json("monitors")
+    layout = source.read_json("getoption general:layout")
+    blockers = compatibility_blockers(
+        version_output,
+        layout=layout,
+        lua_bridge_verified=lua_bridge_verified,
+    )
+    if blockers:
+        raise PlanBlocked(blockers)
+    current_plan = build_plan(
+        profile,
+        active_workspace=active_workspace,
+        clients=clients,
+        monitors=monitors,
+        layout=layout,
+    )
+    revalidate_approved_plan(record, profile_id=profile_id, profile=profile, current_plan=current_plan)
+    try:
+        actions = build_replay_actions(profile, current_plan.data, launcher_resolver=launcher_resolver)
+    except ReplayError:
+        raise
+
+    # This is the first point at which any state-changing operation is allowed.
+    try:
+        consume_plan(plan_id, environment, now)
+    except PlanStoreError as error:
+        raise PlanError(f"could not consume approved plan: {error}") from error
+
+    failures: list[dict[str, str]] = []
+    executed = 0
+    for action in actions:
+        try:
+            executor.focus_target()
+            if action["op"] == "launch":
+                executor.launch(action["argv"])
+                if not executor.wait_for_window(action["windowId"], action["wmClass"], action["placement"]):
+                    failures.append(
+                        _entry(
+                            "window_timeout",
+                            f"Window {action['windowId']!r} did not appear after launch.",
+                        )
+                    )
+                    break
+            elif action["op"] == "dispatch":
+                executor.dispatch(action["argv"])
+            else:
+                failures.append(_entry("unsupported_action", f"Unsupported replay action {action['op']!r}."))
+                break
+            executed += 1
+        except (OSError, ReplayError, RuntimeError) as error:
+            failures.append(_entry("action_failed", str(error)))
+            break
+
+    verification: Mapping[str, Any] = {}
+    if not failures:
+        try:
+            verification = executor.verify(current_plan.data)
+            if verification.get("unmatched", 0) or verification.get("unexpected", 0):
+                failures.append(
+                    _entry(
+                        "verification_mismatch",
+                        "The resulting workspace differs from the approved restore plan.",
+                    )
+                )
+        except (OSError, ReplayError, RuntimeError) as error:
+            failures.append(_entry("verification_failed", str(error)))
+
+    return {
+        "status": "partial" if failures else "ok",
+        "planId": plan_id,
+        "profileId": profile_id,
+        "executedActions": executed,
+        "failures": failures,
+        "verification": dict(verification),
+    }

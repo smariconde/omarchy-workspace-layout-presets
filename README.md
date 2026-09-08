@@ -5,14 +5,15 @@ safely restoring it only into an empty active workspace.
 
 ## Status
 
-Milestone 4 complete. The repository contains a valid `bar-widget` manifest,
-an inert widget entry point, a verified Quickshell-to-backend argv bridge,
-validated atomic profile management, fixture-driven safe capture, pure Dwindle
-tree inference for supported slicing geometries, and read-only restore
-planning. Capture uses JSON-only Hyprland queries and desktop-entry IDs; it
-does not persist process command lines or execute launchers. `plan` previews a
-restore and refuses a non-empty workspace; `restore` itself is intentionally
-not implemented yet.
+Milestone 5 in progress. The repository contains a valid `bar-widget`
+manifest, an inert widget entry point, a verified Quickshell-to-backend argv
+bridge, validated atomic profile management, fixture-driven safe capture, pure
+Dwindle tree inference for supported slicing geometries, and guarded restore
+replay. Capture uses JSON-only Hyprland queries and desktop-entry IDs; it does
+not persist process command lines or execute launchers. `plan` previews a
+restore and refuses a non-empty workspace; `restore` revalidates and consumes
+a single-use token after the QML probe records short-lived evidence for the
+exact Lua bridge.
 
 ## Safety model
 

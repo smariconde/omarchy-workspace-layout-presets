@@ -34,6 +34,7 @@ class SystemHyprctlReader:
     """Run fixed ``hyprctl -j`` query arrays without invoking a shell."""
 
     _ALLOWED_SUBJECTS = {"activeworkspace", "clients", "monitors", "getoption general:layout"}
+    _ALLOWED_TEXT_SUBJECTS = {"version"}
 
     def __init__(self, runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run) -> None:
         self._runner = runner
@@ -57,6 +58,24 @@ class SystemHyprctlReader:
             return json.loads(completed.stdout)
         except json.JSONDecodeError as error:
             raise CaptureError("Hyprland returned invalid JSON") from error
+
+    def read_text(self, subject: str) -> str:
+        """Run one fixed non-JSON query used by the restore compatibility guard."""
+        if subject not in self._ALLOWED_TEXT_SUBJECTS:
+            raise CaptureError("unsupported Hyprland text query")
+        try:
+            completed = self._runner(
+                ["hyprctl", *subject.split()],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired) as error:
+            raise CaptureError("Hyprland is unavailable") from error
+        if completed.returncode != 0:
+            raise CaptureError("Hyprland rejected a text query")
+        return completed.stdout
 
 
 def profile_id_from_name(name: str) -> str:

@@ -26,7 +26,7 @@ contrato, registrarla primero en la arquitectura; no esconderla en código.
 | Captura y lanzadores | Hecho | fixtures anonimizadas, adaptador `hyprctl` de sólo lectura y resolución `.desktop` |
 | Inferencia Dwindle | Hecho | inferencia pura de particiones slicing y fallback explícito |
 | Planificación | Hecho | `plan` de sólo lectura, bloqueos explícitos y token de un solo uso |
-| Restauración | En curso | guardián de compatibilidad implementado; replay sigue bloqueado hasta verificar el puente Lua |
+| Restauración | En curso | revalidación, atestación efímera, executor argv y verificación conectados; falta la prueba end-to-end del replay |
 | Interfaz | Pendiente | componentes reservados |
 | Validación en Omarchy | Pendiente | aún no ejecutada |
 
@@ -164,23 +164,25 @@ contra un Hyprland real: el workspace activo ocupado responde `blocked` con
   sin ejecutar todavía: lanzamientos argv y dispatches Lua para tiled/floating.
 - [x] Preparar la revalidación pura del digest del perfil y de las condiciones
   del workspace antes de consumir un token.
-- [ ] Consumir el token sólo después de esa revalidación, y rechazar cualquier
+- [x] Consumir el token sólo después de esa revalidación, y rechazar cualquier
   aprobación caducada o ya usada.
-- Reproducir `steps` con focus + `preselect` + colocación, reaplicar ratios y
-  posicionar las ventanas floating.
-- Verificar el resultado contra el plan y devolver un informe de éxito parcial
-  sin cerrar ni mover ninguna ventana.
+- [x] Compilar y reproducir acciones mediante un executor inyectable con
+  `argv`, reenfoque del workspace objetivo y espera de ventanas.
+- [x] Verificar el resultado contra el plan y devolver un informe de éxito
+  parcial sin cerrar ni mover ninguna ventana.
+- [x] Conectar el probe QML a una atestación efímera de runtime y exigirla
+  durante `layoutctl restore`.
+- [ ] Probar el executor real en un workspace descartable con la atestación
+  verificada y revisar la identificación de ventanas repetidas.
 
 **Cierre:** `restore` ejecuta exclusivamente un plan aprobado y vigente, o
 bloquea sin cambiar nada.
 
-**Progreso de esta sesión:** versión/layout y todos los dispatches necesarios
-verificados en Omarchy 0.56.2; `backend.restore` expone el parser de versión,
-el guardián puro `compatibility_blockers`, `revalidate_approved_plan` y el
-probe QML del puente; `backend.launchers` ya prepara argv seguro para el
-lanzamiento y `backend.restore` compila acciones sin shell. La suite tiene 72
-pruebas (2 se omiten sin sesión Wayland).
-Queda pendiente el replay controlado.
+**Progreso de esta sesión:** el probe QML ahora genera una atestación efímera
+privada después de un dispatch exitoso; `layoutctl restore` la valida contra la
+versión actual antes de habilitar el replay. La suite tiene 76 pruebas (2 se
+omiten sin sesión Wayland).
+Queda pendiente la prueba end-to-end del replay controlado.
 
 ## Secuencia posterior
 
