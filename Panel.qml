@@ -75,6 +75,12 @@ Ui.Panel {
                 if (operation === "capture" || operation === "profile-rename"
                         || operation === "profile-duplicate" || operation === "profile-delete"
                         || operation === "profile-import") {
+                    if (operation === "profile-delete") {
+                        root.selectedProfile = ""
+                        root.selectedProfileData = null
+                        root.selectedProfileDetails = []
+                        root.planData = null
+                    }
                         root.statusText = operation === "capture"
                             ? "Layout saved successfully."
                             : "Operation completed successfully."

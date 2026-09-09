@@ -104,9 +104,16 @@ Item {
                 response = null
             }
             const operation = root.pendingOperation
+            const stderrText = stderr.text || ""
             root.pendingOperation = ""
-            if (operation === "profile-list") root.profileListFinished(exitCode, response, stderr.text || "")
-            root.commandFinished(operation, exitCode, response, stderr.text || "")
+
+            // Quickshell still reports Process.running=true while onExited is
+            // executing. Defer notifications so handlers can safely enqueue
+            // the next command (for example, refreshing after save/delete).
+            Qt.callLater(function() {
+                if (operation === "profile-list") root.profileListFinished(exitCode, response, stderrText)
+                root.commandFinished(operation, exitCode, response, stderrText)
+            })
         }
     }
 }

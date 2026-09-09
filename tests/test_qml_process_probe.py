@@ -32,7 +32,7 @@ def has_wayland_socket() -> bool:
 
 @unittest.skipUnless(shutil.which("qs") and has_wayland_socket(), "requires Quickshell and a live Wayland socket")
 class QmlProcessProbeTests(unittest.TestCase):
-    def test_profile_list_uses_argv_and_returns_json_to_qml(self) -> None:
+    def test_profile_list_uses_argv_and_can_enqueue_again_from_its_callback(self) -> None:
         with tempfile.TemporaryDirectory() as data_home:
             environment = os.environ.copy()
             environment["XDG_DATA_HOME"] = data_home

@@ -223,6 +223,11 @@ stdout y el manejador `onExited` entrega a QML el código de salida, el objeto
 JSON ya parseado (o `null` si no es válido) y stderr. El proceso no se ejecuta
 en modo detached: Quickshell lo termina al recargar o cerrar la shell.
 
+Como Quickshell todavía informa `Process.running` durante `onExited`, el
+cliente conserva esos valores y difiere las señales con `Qt.callLater`; así un
+manejador puede encadenar de forma fiable el refresco posterior a Save o
+Delete.
+
 Las futuras operaciones deben ser métodos explícitos del cliente con arrays
 creados en código. No se añadirá un método genérico que reciba un comando, una
 cadena de shell o argumentos derivados de perfiles. El probe del puente usa

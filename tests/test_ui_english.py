@@ -48,6 +48,19 @@ class UserInterfaceLanguageTests(unittest.TestCase):
         self.assertIn('"Preview expired. Press Use again."', source)
         self.assertIn("!root.expired", source)
 
+    def test_process_results_are_deferred_until_the_client_is_idle(self) -> None:
+        source = (Path(__file__).resolve().parent.parent / "qml" / "LayoutctlClient.qml").read_text(encoding="utf-8")
+        self.assertIn("Qt.callLater(function()", source)
+        self.assertLess(source.index("Qt.callLater(function()"), source.rindex("root.commandFinished(operation"))
+
+    def test_successful_delete_clears_the_removed_selection(self) -> None:
+        source = (Path(__file__).resolve().parent.parent / "Panel.qml").read_text(encoding="utf-8")
+        delete_success = source.index('if (operation === "profile-delete")')
+        refresh = source.index("root.refresh()", delete_success)
+        self.assertLess(delete_success, refresh)
+        self.assertIn('root.selectedProfile = ""', source[delete_success:refresh])
+        self.assertIn("root.selectedProfileData = null", source[delete_success:refresh])
+
     def test_panel_size_is_content_driven_and_scrolls_when_needed(self) -> None:
         source = (Path(__file__).resolve().parent.parent / "Panel.qml").read_text(encoding="utf-8")
         self.assertNotIn("panelHeight", source)

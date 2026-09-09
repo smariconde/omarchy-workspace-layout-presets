@@ -9,6 +9,7 @@ ShellRoot {
     id: root
 
     property bool finished: false
+    property int completedLists: 0
 
     function finish(success, reason) {
         if (finished) return
@@ -27,7 +28,16 @@ ShellRoot {
                 && response.data !== null
                 && Array.isArray(response.data.profiles)
                 && stderrText === ""
-            root.finish(valid, valid ? "ok" : "unexpected process result")
+            if (!valid) {
+                root.finish(false, "unexpected process result")
+                return
+            }
+            root.completedLists += 1
+            if (root.completedLists === 1) {
+                if (!layoutctl.listProfiles()) root.finish(false, "callback could not enqueue the next command")
+                return
+            }
+            root.finish(true, "ok")
         }
     }
 

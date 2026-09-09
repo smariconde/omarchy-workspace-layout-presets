@@ -197,7 +197,9 @@ Queda pendiente la prueba end-to-end del replay controlado.
 
 **Ajuste de UX:** **Use** crea el preview y **Restore** confirma y ejecuta. Se
 eliminó la segunda confirmación **Restore here**; un preview vencido exige
-generar otro con **Use**.
+generar otro con **Use**. Los resultados de procesos se notifican en el
+siguiente ciclo de eventos para que Save y Delete puedan refrescar la lista
+sin ser rechazados por el estado transitorio `running` de Quickshell.
 
 **Nota de validación:** `omarchy plugin validate .` pasa en este entorno;
 `qmllint` no está instalado y las pruebas QML con Wayland quedan para la matriz
