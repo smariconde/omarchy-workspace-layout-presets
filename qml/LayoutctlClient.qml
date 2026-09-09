@@ -8,9 +8,11 @@ QtObject {
     id: root
 
     readonly property string backendExecutable: localFilePath(Qt.resolvedUrl("../backend/layoutctl.py"))
-    readonly property bool running: profileListProcess.running
+    readonly property bool running: process.running
+    property string pendingOperation: ""
 
     signal profileListFinished(int exitCode, var response, string stderrText)
+    signal commandFinished(string operation, int exitCode, var response, string stderrText)
 
     function localFilePath(url) {
         const encoded = String(url)
@@ -20,35 +22,53 @@ QtObject {
     }
 
     function listProfiles() {
-        if (profileListProcess.running || backendExecutable.length === 0) return false
-        profileListProcess.command = [backendExecutable, "profile", "list"]
-        profileListProcess.running = true
+        return run("profile-list", ["profile", "list"])
+    }
+
+    function run(operation, arguments) {
+        if (process.running || backendExecutable.length === 0) return false
+        pendingOperation = operation
+        process.command = [backendExecutable].concat(arguments)
+        process.running = true
         return true
     }
 
-    property Process profileListProcess: Process {
-        id: profileListProcess
+    function showProfile(profileId) { return run("profile-show", ["profile", "show", profileId]) }
+    function capture(name) { return run("capture", ["capture", name]) }
+    function plan(profileId) { return run("plan", ["plan", profileId]) }
+    function restore(planId) { return run("restore", ["restore", planId]) }
+    function rename(profileId, name) { return run("profile-rename", ["profile", "rename", profileId, name]) }
+    function duplicate(profileId, newProfileId) { return run("profile-duplicate", ["profile", "duplicate", profileId, newProfileId]) }
+    function remove(profileId) { return run("profile-delete", ["profile", "delete", profileId, "--confirm"]) }
+    function exportProfile(profileId, destination) { return run("profile-export", ["profile", "export", profileId, destination]) }
+    function importProfile(source) { return run("profile-import", ["profile", "import", source]) }
+
+    Process {
+        id: process
         running: false
         command: []
 
         stdout: StdioCollector {
-            id: profileListStdout
+            id: stdout
             waitForEnd: true
         }
 
         stderr: StdioCollector {
-            id: profileListStderr
+            id: stderr
             waitForEnd: true
         }
 
         onExited: function(exitCode) {
             let response = null
             try {
-                response = JSON.parse(profileListStdout.text || "")
+                response = JSON.parse(stdout.text || "")
             } catch (error) {
                 response = null
             }
-            root.profileListFinished(exitCode, response, profileListStderr.text || "")
+            const operation = root.pendingOperation
+            root.pendingOperation = ""
+            if (operation === "profile-list") root.profileListFinished(exitCode, response, stderr.text || "")
+            root.commandFinished(operation, exitCode, response, stderr.text || "")
         }
     }
 }

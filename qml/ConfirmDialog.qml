@@ -1,4 +1,7 @@
 import QtQuick
 
-// Shared confirmation surface for restore and destructive profile actions.
-Item {}
+Item {
+    signal accepted()
+    signal rejected()
+    property string message: ""
+}

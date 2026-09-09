@@ -35,7 +35,7 @@ The backend owns all Hyprland and filesystem interactions. QML passes only
 fixed executable paths and argument arrays; it never constructs shell source
 from a profile.
 
-`layoutctl` exposes these future JSON-only command families:
+`layoutctl` exposes these JSON-only command families used by the V1 menu:
 
 ```text
 capture <name>

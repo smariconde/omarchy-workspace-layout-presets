@@ -5,8 +5,8 @@ safely restoring it only into an empty active workspace.
 
 ## Status
 
-Milestone 5 in progress. The repository contains a valid `bar-widget`
-manifest, an inert widget entry point, a verified Quickshell-to-backend argv
+Milestone 6 implemented. The repository contains a functional `bar-widget`
+menu, a verified Quickshell-to-backend argv
 bridge, validated atomic profile management, fixture-driven safe capture, pure
 Dwindle tree inference for supported slicing geometries, and guarded restore
 replay. Capture uses JSON-only Hyprland queries and desktop-entry IDs; it does

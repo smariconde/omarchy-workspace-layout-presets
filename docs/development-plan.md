@@ -1,6 +1,6 @@
 # Hoja de ruta de desarrollo
 
-**Estado:** M5 en curso · próxima sesión: spike de dispatches en sesión Omarchy
+**Estado:** M6 implementado · próxima sesión: validación visual en sesión Omarchy
 **Objetivo:** una primera beta de perfiles de layout para un workspace
 `dwindle` en Omarchy 4.x.
 
@@ -27,7 +27,7 @@ contrato, registrarla primero en la arquitectura; no esconderla en código.
 | Inferencia Dwindle | Hecho | inferencia pura de particiones slicing y fallback explícito |
 | Planificación | Hecho | `plan` de sólo lectura, bloqueos explícitos y token de un solo uso |
 | Restauración | En curso | revalidación, atestación efímera, executor argv y verificación conectados; falta la prueba end-to-end del replay |
-| Interfaz | Pendiente | componentes reservados |
+| Interfaz | Hecho para beta funcional | menú desplegable, captura, gestión, preview y confirmaciones conectadas al CLI |
 | Validación en Omarchy | Pendiente | aún no ejecutada |
 
 La suite actual se ejecuta con `python -m unittest discover -v`.
@@ -42,7 +42,7 @@ La suite actual se ejecuta con `python -m unittest discover -v`.
 | M3 | Inferencia Dwindle | M2 | Árbol exacto para geometrías soportadas; `fallback` explícito para las demás | Hecho |
 | M4 | Plan de restauración | M1–M3 | `plan` es de sólo lectura y bloquea invariablemente workspaces no vacíos | Hecho |
 | M5 | Restauración controlada | M4 | Ejecuta sólo un plan aprobado, verifica el resultado y nunca cierra ventanas | En curso |
-| M6 | Interfaz V1 | M0, M1, M4, M5 | Guardar, gestionar, previsualizar y restaurar desde el widget accesible | Pendiente |
+| M6 | Interfaz V1 | M0, M1, M4, M5 | Guardar, gestionar, previsualizar y restaurar desde el widget accesible | Hecho |
 | M7 | Hardening y beta | M0–M6 | Suite, validación del plugin, matriz manual y documentación de límites completas | Pendiente |
 
 ## Próximas sesiones
@@ -183,6 +183,20 @@ privada después de un dispatch exitoso; `layoutctl restore` la valida contra la
 versión actual antes de habilitar el replay. La suite tiene 76 pruebas (2 se
 omiten sin sesión Wayland).
 Queda pendiente la prueba end-to-end del replay controlado.
+
+### M6 — Interfaz V1 — Hecho
+
+- [x] Abrir y cerrar el panel desde el widget de la barra.
+- [x] Listar y seleccionar perfiles mediante layoutctl.
+- [x] Guardar el workspace activo con nombre.
+- [x] Inspeccionar, renombrar, duplicar, exportar, importar y borrar con confirmación.
+- [x] Generar preview de sólo lectura y exigir confirmación antes de restaurar.
+- [x] Mostrar bloqueos, advertencias y resultados parciales del backend.
+
+**Cierre:** el flujo completo de la beta funcional está disponible desde el menú.
+
+**Nota de validación:** qmllint y omarchy plugin validate no están instalados
+en este entorno; las pruebas QML con Wayland quedan para la matriz manual de M7.
 
 ## Secuencia posterior
 
