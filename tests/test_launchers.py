@@ -33,18 +33,22 @@ class LauncherResolutionTests(unittest.TestCase):
 
             self.assertEqual(desktop_entry_command("code", directories=[directory]), ["code", "--reuse-window", "%"])
 
-    def test_rejects_field_codes_and_shell_execs(self) -> None:
+    def test_omits_empty_file_or_url_field_codes_and_rejects_unsupported_ones(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             directory = Path(temporary_directory)
             (directory / "files.desktop").write_text(
                 "[Desktop Entry]\nType=Application\nExec=app %U\n", encoding="utf-8"
             )
+            (directory / "unsupported.desktop").write_text(
+                "[Desktop Entry]\nType=Application\nExec=app %c\n", encoding="utf-8"
+            )
             (directory / "shell.desktop").write_text(
                 "[Desktop Entry]\nType=Application\nExec=sh -c 'echo unsafe'\n", encoding="utf-8"
             )
 
+            self.assertEqual(desktop_entry_command("files", directories=[directory]), ["app"])
             with self.assertRaises(LauncherError):
-                desktop_entry_command("files", directories=[directory])
+                desktop_entry_command("unsupported", directories=[directory])
             with self.assertRaises(LauncherError):
                 desktop_entry_command("shell", directories=[directory])
 

@@ -21,6 +21,7 @@ class LauncherError(ValueError):
 
 _DESKTOP_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}")
 _SHELL_EXECUTABLES = {"ash", "bash", "csh", "dash", "fish", "ksh", "sh", "tcsh", "zsh"}
+_EMPTY_ARGUMENT_FIELD_CODES = {"%f", "%F", "%u", "%U"}
 _WEBAPP_EXECUTABLE = "omarchy-launch-webapp"
 _WEBAPP_HANDLER_PREFIX = "omarchy-webapp-handler-"
 
@@ -180,9 +181,9 @@ def desktop_entry_command(
 ) -> list[str]:
     """Resolve a desktop entry to safe argv without invoking a shell.
 
-    V1 launches only entries with no unresolved desktop-entry field codes. A
-    literal ``%%`` is reduced to ``%``; file, URL and startup field codes are
-    rejected because the profile has no user-approved values for them.
+    File and URL field codes are omitted because a layout restore supplies no
+    files or URLs. A literal ``%%`` is reduced to ``%``; every other field code
+    is rejected because the profile has no user-approved value for it.
     """
     search_directories = list(application_directories(environment) if directories is None else directories)
     path = _desktop_entry_path(desktop_id, search_directories)
@@ -213,6 +214,8 @@ def desktop_entry_command(
         raise LauncherError(f"desktop entry {desktop_id!r} requires unsafe shell execution")
     normalized: list[str] = []
     for argument in arguments:
+        if argument in _EMPTY_ARGUMENT_FIELD_CODES:
+            continue
         if "%" not in argument:
             normalized.append(argument)
             continue

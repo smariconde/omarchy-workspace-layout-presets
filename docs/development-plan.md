@@ -182,6 +182,9 @@ bloquea sin cambiar nada.
 privada después de un dispatch exitoso; el flujo normal lo ejecuta al confirmar
 **Restore** y `layoutctl restore` la valida contra la versión actual antes de
 habilitar el replay. La interfaz no depende de evidencia creada manualmente.
+Los launchers `.desktop` que usan `%f`, `%F`, `%u` o `%U` se ejecutan sin esos
+argumentos cuando el preset no aporta archivos ni URLs; un error de compilación
+queda contenido en el contrato JSON.
 Queda pendiente la prueba end-to-end del replay controlado.
 
 ### M6 — Interfaz V1 — Hecho
@@ -199,7 +202,9 @@ Queda pendiente la prueba end-to-end del replay controlado.
 eliminó la segunda confirmación **Restore here**; un preview vencido exige
 generar otro con **Use**. Los resultados de procesos se notifican en el
 siguiente ciclo de eventos para que Save y Delete puedan refrescar la lista
-sin ser rechazados por el estado transitorio `running` de Quickshell.
+sin ser rechazados por el estado transitorio `running` de Quickshell. Además,
+cada instancia vuelve a listar perfiles al abrirse para reflejar cambios
+hechos desde otro workspace.
 
 **Nota de validación:** `omarchy plugin validate .` pasa en este entorno;
 `qmllint` no está instalado y las pruebas QML con Wayland quedan para la matriz

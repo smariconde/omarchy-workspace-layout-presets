@@ -34,8 +34,16 @@ Ui.Panel {
         return fallback
     }
     function refresh() {
+        if (!client.listProfiles()) return false
         statusText = "Loading presets…"
-        client.listProfiles()
+        return true
+    }
+    function clearSelection() {
+        selectedProfile = ""
+        selectedProfileData = null
+        selectedProfileDetails = []
+        planData = null
+        confirmDelete = false
     }
     function choose(profileId) {
         selectedProfile = profileId
@@ -55,7 +63,10 @@ Ui.Panel {
         function onCommandFinished(operation, exitCode, response, stderrText) {
             if (operation === "profile-list") {
                 if (response && response.status === "ok") {
-                    root.profiles = response.data.profiles || []
+                    const profiles = response.data.profiles || []
+                    root.profiles = profiles
+                    if (root.selectedProfile !== "" && profiles.indexOf(root.selectedProfile) < 0)
+                        root.clearSelection()
                     root.statusText = root.profiles.length
                         ? "Select a preset to see its details and actions."
                         : "No saved presets yet."
@@ -76,10 +87,7 @@ Ui.Panel {
                         || operation === "profile-duplicate" || operation === "profile-delete"
                         || operation === "profile-import") {
                     if (operation === "profile-delete") {
-                        root.selectedProfile = ""
-                        root.selectedProfileData = null
-                        root.selectedProfileDetails = []
-                        root.planData = null
+                        root.clearSelection()
                     }
                         root.statusText = operation === "capture"
                             ? "Layout saved successfully."
@@ -98,6 +106,9 @@ Ui.Panel {
             }
         }
     }
+
+    Component.onCompleted: refresh()
+    onOpenedChanged: if (opened) refresh()
 
     Ui.KeyboardPanel {
         id: popup
@@ -375,11 +386,6 @@ Ui.Panel {
                     font.pixelSize: Style.font.caption
                     maximumLineCount: 2
                     elide: Text.ElideRight
-                }
-                Item {
-                    width: 1
-                    height: 1
-                    Component.onCompleted: root.refresh()
                 }
             }
         }

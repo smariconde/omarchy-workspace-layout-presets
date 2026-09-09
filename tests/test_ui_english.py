@@ -58,8 +58,13 @@ class UserInterfaceLanguageTests(unittest.TestCase):
         delete_success = source.index('if (operation === "profile-delete")')
         refresh = source.index("root.refresh()", delete_success)
         self.assertLess(delete_success, refresh)
-        self.assertIn('root.selectedProfile = ""', source[delete_success:refresh])
-        self.assertIn("root.selectedProfileData = null", source[delete_success:refresh])
+        self.assertIn("root.clearSelection()", source[delete_success:refresh])
+
+    def test_each_panel_instance_refreshes_and_reconciles_when_opened(self) -> None:
+        source = (Path(__file__).resolve().parent.parent / "Panel.qml").read_text(encoding="utf-8")
+        self.assertIn("onOpenedChanged: if (opened) refresh()", source)
+        self.assertIn("profiles.indexOf(root.selectedProfile) < 0", source)
+        self.assertLess(source.index("function clearSelection()"), source.index("function choose(profileId)"))
 
     def test_panel_size_is_content_driven_and_scrolls_when_needed(self) -> None:
         source = (Path(__file__).resolve().parent.parent / "Panel.qml").read_text(encoding="utf-8")

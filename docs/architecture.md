@@ -31,6 +31,9 @@
 
 `BarWidget.qml` owns the small bar affordance. `Panel.qml` owns interaction,
 accessibility, confirmations, and rendering JSON returned by `layoutctl`.
+Cada instancia del panel vuelve a pedir `profile list` al abrirse y descarta
+una selección que ya no exista, porque Omarchy puede conservar instancias
+separadas del widget entre barras o workspaces.
 The backend owns all Hyprland and filesystem interactions. QML passes only
 fixed executable paths and argument arrays; it never constructs shell source
 from a profile.
@@ -196,6 +199,9 @@ consume ni ejecuta el plan.
 de cualquier I/O: cada lanzamiento es un `argv` proveniente de un `.desktop` y
 cada dispatch es un array con tres elementos: `hyprctl`, `dispatch` y la
 expresión Lua.
+Los códigos de campo `%f`, `%F`, `%u` y `%U` se omiten al restaurar porque el
+plugin no proporciona archivos ni URLs; cualquier otro código no resoluble
+bloquea la compilación con un error JSON y nunca expone un traceback en la UI.
 La compilación escapa las cadenas Lua y nunca produce shell source. El executor
 consume estas acciones sólo después de revalidar el token, el perfil y el
 workspace; una acción fallida se reporta como resultado parcial y no provoca

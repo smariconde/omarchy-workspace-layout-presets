@@ -37,6 +37,7 @@ from backend.profile_store import (
 from backend.restore import (
     PlanBlocked,
     PlanError,
+    ReplayError,
     SystemReplayExecutor,
     plan_profile,
     restore_approved_plan,
@@ -215,6 +216,8 @@ def execute(
             return EXIT_ERROR, result_blocked(blocked.blocked, warnings=blocked.warnings)
         except PlanError as error:
             return EXIT_ERROR, result_error("restore_error", str(error))
+        except ReplayError as error:
+            return EXIT_ERROR, result_error("replay_error", str(error))
         except ProfileError as error:
             return EXIT_ERROR, result_error("profile_error", str(error))
         except CaptureError as error:

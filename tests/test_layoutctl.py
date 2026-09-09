@@ -47,6 +47,20 @@ class LayoutctlContractTests(unittest.TestCase):
         self.assertEqual(response["status"], "ok")
         self.assertEqual(response["data"], replay)
 
+    def test_restore_compilation_failure_stays_inside_the_json_contract(self) -> None:
+        def fail_restore(plan_id: str) -> dict[str, object]:
+            del plan_id
+            raise layoutctl.ReplayError("desktop entry contains an unsupported field code")
+
+        exit_code, response = layoutctl.execute(
+            ["restore", "0123456789abcdef0123456789abcdef"],
+            restorer=fail_restore,
+        )
+
+        self.assertEqual(exit_code, layoutctl.EXIT_ERROR)
+        self.assertEqual(response["status"], "error")
+        self.assertEqual(response["error"]["code"], "replay_error")
+
     def test_plan_returns_its_preview_and_warnings_without_changing_anything(self) -> None:
         preview = {"planId": "0123456789abcdef0123456789abcdef", "profileId": "coding", "layoutMode": "tree"}
         warnings = [{"code": "monitor_changed", "message": "scaled"}]
