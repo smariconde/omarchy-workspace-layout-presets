@@ -1,13 +1,54 @@
 import QtQuick
+import qs.Ui
 
-Item {
+// Omarchy bar-widget contract: the root inherits BarWidget and the visible
+// affordance is a WidgetButton. The panel is hosted by KeyboardPanel so it is
+// positioned and focused like every other Omarchy shell popup.
+BarWidget {
     id: root
-    implicitWidth: 30
-    implicitHeight: 30
-    Rectangle {
-        anchors.fill: parent; radius: 5; color: mouse.containsMouse ? "#43515d" : "transparent"
-        Text { anchors.centerIn: parent; text: "▦"; color: "white"; font.pixelSize: 18 }
-        MouseArea { id: mouse; anchors.fill: parent; hoverEnabled: true; onClicked: panel.open = !panel.open }
+    moduleName: "santiago.workspace-layout-presets"
+
+    readonly property bool opened: panelLoader.item ? panelLoader.item.opened === true : false
+
+    function open() { if (panelLoader.item) panelLoader.item.open() }
+    function close() { if (panelLoader.item) panelLoader.item.close() }
+    function togglePanel() { if (panelLoader.item) panelLoader.item.toggle() }
+    function closeForPopoutSwitch() { if (panelLoader.item) panelLoader.item.closeForPopoutSwitch() }
+
+    implicitWidth: button.implicitWidth
+    implicitHeight: button.implicitHeight
+
+    onBarChanged: injectPanel()
+    onSettingsChanged: injectPanel()
+
+    function injectPanel() {
+        var target = panelLoader.item
+        if (!target) return
+        if ("bar" in target) target.bar = root.bar
+        if ("settings" in target) target.settings = root.settings
+        if ("anchorItem" in target) target.anchorItem = button
+        if ("hostWidget" in target) target.hostWidget = root
     }
-    Panel { id: panel; x: -implicitWidth + root.width; y: root.height + 6; z: 100 }
+
+    Loader {
+        id: panelLoader
+        active: true
+        source: Qt.resolvedUrl("Panel.qml")
+        visible: false
+        onLoaded: {
+            root.injectPanel()
+            Qt.callLater(root.injectPanel)
+        }
+    }
+
+    WidgetButton {
+        id: button
+        anchors.fill: parent
+        bar: root.bar
+        text: "▦"
+        tooltipText: "Workspace layouts"
+        onPressed: function(buttonCode) {
+            if (buttonCode === Qt.LeftButton) root.togglePanel()
+        }
+    }
 }

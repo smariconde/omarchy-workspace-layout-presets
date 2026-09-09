@@ -1,9 +1,15 @@
 import QtQuick
+import qs.Ui as Ui
 import "qml" as Plugin
 
-Item {
+Ui.Panel {
     id: root
-    property bool open: false
+    moduleName: "santiago.workspace-layout-presets"
+    ipcTarget: "santiago.workspace-layout-presets"
+    manageIpc: false
+    property var anchorItem: null
+    property var hostWidget: null
+    readonly property var barIdentity: hostWidget || root
     property var profiles: []
     property string selectedProfile: ""
     property var selectedProfileData: null
@@ -16,8 +22,6 @@ Item {
     property color accentColor: "#8bd5ca"
     implicitWidth: 390
     implicitHeight: 740
-    visible: open
-
     Plugin.LayoutctlClient { id: client }
 
     function messageFrom(response, fallback) {
@@ -66,9 +70,19 @@ Item {
         }
     }
 
-    Rectangle {
-        anchors.fill: parent; color: root.panelColor; radius: 10
-        border.color: "#48515c"; border.width: 1
+    KeyboardPanel {
+        id: popup
+        anchorItem: root.anchorItem
+        owner: root.barIdentity
+        bar: root.bar
+        open: root.opened
+        centerOnBar: true
+        contentWidth: root.implicitWidth
+        contentHeight: root.implicitHeight
+
+        Rectangle {
+            anchors.fill: parent; color: root.panelColor; radius: 10
+            border.color: "#48515c"; border.width: 1
         Column {
             anchors.fill: parent; anchors.margins: 14; spacing: 8
             Row {
@@ -82,7 +96,7 @@ Item {
             Rectangle { width: parent.width; height: 1; color: "#48515c" }
             Row {
                 width: parent.width; spacing: 6
-                TextInput {
+                Ui.TextField {
                     id: captureName; width: parent.width - 92; height: 32; color: "white"; padding: 8; clip: true
                     placeholderText: "Nombre del perfil"; selectByMouse: true
                     Rectangle { anchors.fill: parent; z: -1; color: "#15181d"; radius: 5; border.color: "#48515c" }
@@ -155,7 +169,7 @@ Item {
             }
             Row {
                 width: parent.width; spacing: 6
-                TextInput { id: renameInput; width: parent.width - 96; height: 30; color: "white"; padding: 7; placeholderText: "Nuevo nombre"
+                Ui.TextField { id: renameInput; width: parent.width - 96; height: 30; color: "white"; padding: 7; placeholderText: "Nuevo nombre"
                     Rectangle { anchors.fill: parent; z: -1; color: "#15181d"; radius: 5; border.color: "#48515c" } }
                 Rectangle { width: 90; height: 30; radius: 5; color: root.cardColor
                     Text { anchors.centerIn: parent; text: "Renombrar"; color: "white"; font.pixelSize: 12 }
@@ -165,7 +179,7 @@ Item {
             }
             Row {
                 width: parent.width; spacing: 6
-                TextInput { id: exportPath; width: parent.width - 96; height: 30; color: "white"; padding: 7; placeholderText: "Ruta para exportar/importar"
+                Ui.TextField { id: exportPath; width: parent.width - 96; height: 30; color: "white"; padding: 7; placeholderText: "Ruta para exportar/importar"
                     Rectangle { anchors.fill: parent; z: -1; color: "#15181d"; radius: 5; border.color: "#48515c" } }
                 Rectangle { width: 90; height: 30; radius: 5; color: root.cardColor
                     Text { anchors.centerIn: parent; text: "Exportar"; color: "white"; font.pixelSize: 12 }
@@ -184,7 +198,7 @@ Item {
             }
             Row {
                 width: parent.width; spacing: 6
-                TextInput { id: copyInput; width: parent.width - 96; height: 30; color: "white"; padding: 7; placeholderText: "ID de la copia"
+                Ui.TextField { id: copyInput; width: parent.width - 96; height: 30; color: "white"; padding: 7; placeholderText: "ID de la copia"
                     Rectangle { anchors.fill: parent; z: -1; color: "#15181d"; radius: 5; border.color: "#48515c" } }
                 Rectangle { width: 90; height: 30; radius: 5; color: root.cardColor
                     Text { anchors.centerIn: parent; text: "Duplicar"; color: "white"; font.pixelSize: 12 }
