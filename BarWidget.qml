@@ -45,7 +45,8 @@ BarWidget {
         id: button
         anchors.fill: parent
         bar: root.bar
-        text: "▦"
+        text: "\uf00a"
+        fontFamily: "omarchy"
         tooltipText: "Workspace layouts"
         onPressed: function(buttonCode) {
             if (buttonCode === Qt.LeftButton) root.togglePanel()
