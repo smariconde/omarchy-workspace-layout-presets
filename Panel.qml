@@ -21,7 +21,11 @@ Ui.Panel {
     property string statusText: ""
 
     readonly property int panelWidth: Style.space(410)
-    readonly property int panelHeight: Style.space(660)
+    readonly property int panelHeight: Style.space(500
+        + (planData ? 132 : 0)
+        + (selectedProfileData ? 42 : 0)
+        + (confirmDelete ? 38 : 0)
+        + (confirmRestore ? 38 : 0))
     implicitWidth: panelWidth
     implicitHeight: panelHeight
 
@@ -96,54 +100,32 @@ Ui.Panel {
         owner: root.barIdentity
         bar: root.bar
         open: root.opened
-        centerOnBar: true
+        centerOnBar: false
         contentWidth: root.panelWidth
         contentHeight: root.panelHeight
 
-        Ui.BorderSurface {
+        Column {
             anchors.fill: parent
-            color: Color.popups.background
-            borderSpec: Border.surfaceSpec("popups", "border", Color.popups.border, Math.max(1, Style.space(2)))
-            radius: Style.cornerRadius
+            spacing: Style.spacing.panelGap
 
             Column {
-                anchors.fill: parent
-                anchors.margins: Style.spacing.panelPadding
-                spacing: Style.spacing.panelGap
-
-                Row {
-                    width: parent.width
-                    height: Style.space(30)
-                    spacing: Style.spacing.sm
-                    Column {
-                        width: parent.width - closeButton.width - Style.spacing.sm
-                        anchors.verticalCenter: parent.verticalCenter
-                        spacing: Style.spacing.xxs
-                        Text {
-                            text: "Workspace layouts"
-                            color: Color.popups.text
-                            font.family: Style.font.family
-                            font.pixelSize: Style.font.heading
-                            font.weight: Font.Medium
-                        }
-                        Text {
-                            text: "Presets para el workspace activo"
-                            color: Color.popups.text
-                            opacity: 0.58
-                            font.family: Style.font.family
-                            font.pixelSize: Style.font.bodySmall
-                        }
-                    }
-                    Ui.PanelActionButton {
-                        id: closeButton
-                        anchors.verticalCenter: parent.verticalCenter
-                        iconText: "×"
-                        tooltipText: "Cerrar"
-                        foreground: Color.popups.text
-                        hoverColor: Color.accent
-                        onClicked: root.close()
-                    }
+                width: parent.width
+                spacing: Style.spacing.xxs
+                Text {
+                    text: "Workspace layouts"
+                    color: Color.popups.text
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.heading
+                    font.weight: Font.Medium
                 }
+                Text {
+                    text: "Presets para el workspace activo"
+                    color: Color.popups.text
+                    opacity: 0.58
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.bodySmall
+                }
+            }
 
                 Text {
                     width: parent.width
@@ -268,7 +250,7 @@ Ui.Panel {
                 Ui.BorderSurface {
                     visible: root.confirmDelete
                     width: parent.width
-                    height: Style.space(38)
+                    height: root.confirmDelete ? Style.space(38) : 0
                     color: Util.alpha(Color.urgent, 0.12)
                     borderSpec: Border.flat(Util.alpha(Color.urgent, 0.62), Style.normalBorderWidth)
                     radius: Style.cornerRadius
@@ -311,7 +293,7 @@ Ui.Panel {
                 Ui.BorderSurface {
                     visible: root.selectedProfileData !== null
                     width: parent.width
-                    height: Style.space(42)
+                    height: root.selectedProfileData ? Style.space(42) : 0
                     color: Util.alpha(Color.popups.text, 0.035)
                     borderSpec: Border.flat(Util.alpha(Color.popups.text, 0.18), Style.normalBorderWidth)
                     radius: Style.cornerRadius
@@ -334,7 +316,7 @@ Ui.Panel {
                 Ui.BorderSurface {
                     visible: root.confirmRestore
                     width: parent.width
-                    height: Style.space(38)
+                    height: root.confirmRestore ? Style.space(38) : 0
                     color: Util.alpha(Color.accent, 0.12)
                     borderSpec: Border.flat(Util.alpha(Color.accent, 0.62), Style.normalBorderWidth)
                     radius: Style.cornerRadius
@@ -408,6 +390,5 @@ Ui.Panel {
                     Component.onCompleted: root.refresh()
                 }
             }
-        }
     }
 }
