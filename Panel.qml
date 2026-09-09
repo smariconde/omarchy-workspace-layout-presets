@@ -15,6 +15,7 @@ Ui.Panel {
     property var profiles: []
     property string selectedProfile: ""
     property var selectedProfileData: null
+    property var selectedProfileDetails: []
     property var planData: null
     property bool confirmRestore: false
     property bool confirmDelete: false
@@ -23,7 +24,7 @@ Ui.Panel {
     readonly property int panelWidth: Style.space(410)
     readonly property int panelHeight: Style.space(500
         + (planData ? 132 : 0)
-        + (selectedProfileData ? 42 : 0)
+        + (selectedProfileData ? 190 : 0)
         + (confirmDelete ? 38 : 0)
         + (confirmRestore ? 38 : 0))
     implicitWidth: panelWidth
@@ -43,6 +44,7 @@ Ui.Panel {
     function choose(profileId) {
         selectedProfile = profileId
         selectedProfileData = null
+        selectedProfileDetails = []
         planData = null
         confirmRestore = false
         confirmDelete = false
@@ -60,13 +62,16 @@ Ui.Panel {
                 if (response && response.status === "ok") {
                     root.profiles = response.data.profiles || []
                     root.statusText = root.profiles.length
-                        ? "Select a layout to see its actions."
+                        ? "Select a layout to see its details and actions."
                         : "No saved layouts yet."
                 } else root.statusText = root.messageFrom(response, stderrText || "Could not list layouts.")
                 return
             }
             if (response && response.status === "ok") {
-                if (operation === "profile-show") root.selectedProfileData = response.data.profile
+                if (operation === "profile-show") {
+                    root.selectedProfileData = response.data.profile
+                    root.selectedProfileDetails = response.data.details || []
+                }
                 if (operation === "plan") {
                     var preview = response.data
                     preview.warnings = response.warnings || []
@@ -76,13 +81,15 @@ Ui.Panel {
                 if (operation === "capture" || operation === "profile-rename"
                         || operation === "profile-duplicate" || operation === "profile-delete"
                         || operation === "profile-import") {
-                    root.statusText = "Operation completed."
+                        root.statusText = operation === "capture"
+                            ? "Layout saved successfully."
+                            : "Operation completed successfully."
                     root.refresh()
                 }
                 if (operation === "restore") {
                     root.statusText = response.data.failures && response.data.failures.length
                         ? "Partial restore: review the result."
-                        : "Restore completed."
+                        : "Layout restored successfully."
                     root.confirmRestore = false
                     root.planData = null
                 }
@@ -142,7 +149,7 @@ Ui.Panel {
                     color: Util.alpha(Color.popups.text, 0.22)
                 }
 
-                Ui.PanelSectionHeader { text: "Save layout" }
+                Ui.PanelSectionHeader { text: "Save current layout" }
                 Row {
                     width: parent.width
                     spacing: Style.spacing.controlGap
@@ -156,9 +163,9 @@ Ui.Panel {
                     }
                     Ui.Button {
                         id: saveButton
-                        width: Style.space(86)
+                        width: Style.space(142)
                         height: Style.spacing.controlHeight
-                        text: "Save"
+                        text: "Save current layout"
                         foreground: Color.accent
                         bordered: true
                         onClicked: {
@@ -216,30 +223,22 @@ Ui.Panel {
                     width: parent.width
                     spacing: Style.spacing.xs
                     Ui.Button {
-                        width: (parent.width - Style.spacing.xs * 2) / 3
+                        width: (parent.width - parent.spacing) / 2
                         height: Style.spacing.controlHeight
-                        text: "View details"
-                        enabled: root.selectedProfile !== ""
-                        bordered: true
-                        onClicked: client.showProfile(root.selectedProfile)
-                    }
-                    Ui.Button {
-                        width: (parent.width - Style.spacing.xs * 2) / 3
-                        height: Style.spacing.controlHeight
-                        text: "Preview restore"
+                        text: "Use layout"
                         enabled: root.selectedProfile !== ""
                         bordered: true
                         foreground: Color.accent
                         onClicked: {
                             root.planData = null
                             client.plan(root.selectedProfile)
-                            root.statusText = "Preparing restore preview…"
+                            root.statusText = "Preparing layout preview…"
                         }
                     }
                     Ui.Button {
-                        width: (parent.width - Style.spacing.xs * 2) / 3
+                        width: (parent.width - parent.spacing) / 2
                         height: Style.spacing.controlHeight
-                        text: "Delete"
+                        text: "Delete layout"
                         enabled: root.selectedProfile !== ""
                         foreground: Color.urgent
                         bordered: true
@@ -273,7 +272,7 @@ Ui.Panel {
                             width: Style.space(82)
                             height: Style.spacing.controlHeight
                             anchors.verticalCenter: parent.verticalCenter
-                            text: "Confirmar"
+                            text: "Confirm delete"
                             foreground: Color.urgent
                             onClicked: {
                                 root.confirmDelete = false
@@ -293,23 +292,64 @@ Ui.Panel {
                 Ui.BorderSurface {
                     visible: root.selectedProfileData !== null
                     width: parent.width
-                    height: root.selectedProfileData ? Style.space(42) : 0
+                    height: root.selectedProfileData ? Style.space(190) : 0
                     color: Util.alpha(Color.popups.text, 0.035)
                     borderSpec: Border.flat(Util.alpha(Color.popups.text, 0.18), Style.normalBorderWidth)
                     radius: Style.cornerRadius
-                    Text {
+                    Column {
                         anchors.fill: parent
                         anchors.margins: Style.spacing.sm
-                        color: Color.popups.text
-                        opacity: 0.66
-                        font.family: Style.font.family
-                        font.pixelSize: Style.font.caption
-                        elide: Text.ElideRight
-                        text: root.selectedProfileData
-                            ? (root.selectedProfileData.name + " · " + root.selectedProfileData.layoutConfidence
-                               + " · tiled " + root.selectedProfileData.tiled.nodes.length
-                               + " · floating " + root.selectedProfileData.floating.length)
-                            : ""
+                        spacing: Style.spacing.xxs
+                        Text {
+                            width: parent.width
+                            color: Color.popups.text
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.caption
+                            font.weight: Font.Medium
+                            text: root.selectedProfileData
+                                ? (root.selectedProfileData.name + " · " + root.selectedProfileData.layoutConfidence
+                                   + " · workspace " + root.selectedProfileData.source.workspace.name
+                                   + " · " + root.selectedProfileData.source.monitor.connector)
+                                : ""
+                            elide: Text.ElideRight
+                        }
+                        Text {
+                            width: parent.width
+                            color: Color.popups.text
+                            opacity: 0.66
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.caption
+                            text: root.selectedProfileData
+                                ? ("Tiled: " + root.selectedProfileData.tiled.nodes.length
+                                   + " · Floating: " + root.selectedProfileData.floating.length)
+                                : ""
+                        }
+                        ListView {
+                            width: parent.width
+                            height: Style.space(128)
+                            clip: true
+                            spacing: Style.spacing.xxs
+                            model: root.selectedProfileDetails
+                            delegate: Text {
+                                required property var modelData
+                                width: parent.width
+                                color: Color.popups.text
+                                opacity: 0.72
+                                font.family: Style.font.family
+                                font.pixelSize: Style.font.caption
+                                elide: Text.ElideRight
+                                text: {
+                                    let metadata = modelData.metadata
+                                    let name = metadata && metadata.displayName
+                                        ? metadata.displayName : modelData.wmClass
+                                    let kind = metadata && metadata.kind === "webapp"
+                                        ? "Web app" : "Application"
+                                    let category = metadata && metadata.categories && metadata.categories.length
+                                        ? " · " + metadata.categories.join(", ") : ""
+                                    return name + " · " + kind + category + " · " + modelData.placement
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -339,35 +379,12 @@ Ui.Panel {
                             width: Style.space(82)
                             height: Style.spacing.controlHeight
                             anchors.verticalCenter: parent.verticalCenter
-                            text: "Confirmar"
+                            text: "Restore here"
                             foreground: Color.accent
                             onClicked: {
                                 root.confirmRestore = false
                                 client.restore(root.planData.planId)
                             }
-                        }
-                    }
-                }
-
-                Row {
-                    width: parent.width
-                    spacing: Style.spacing.controlGap
-                    Ui.TextField {
-                        id: renameInput
-                        width: parent.width - renameButton.width - parent.spacing
-                        height: Style.spacing.controlHeight
-                        placeholderText: "New layout name"
-                    }
-                    Ui.Button {
-                        id: renameButton
-                        width: Style.space(92)
-                        height: Style.spacing.controlHeight
-                        text: "Rename"
-                        enabled: root.selectedProfile !== ""
-                        bordered: true
-                        onClicked: {
-                            if (renameInput.text.trim()) client.rename(root.selectedProfile, renameInput.text.trim())
-                            else root.statusText = "Enter a new layout name."
                         }
                     }
                 }

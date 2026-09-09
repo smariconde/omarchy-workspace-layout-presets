@@ -103,7 +103,7 @@ class LayoutctlContractTests(unittest.TestCase):
         self.assertEqual(response["warnings"], profile["warnings"])
 
     def test_profile_management_commands_return_json_data(self) -> None:
-        profile = {"schemaVersion": 1, "name": "Coding"}
+        profile = {"schemaVersion": 1, "name": "Coding", "tiled": {"nodes": []}, "floating": []}
         with (
             patch.object(layoutctl, "read_profile", return_value=profile),
             patch.object(layoutctl, "rename_profile", return_value=profile),
@@ -112,7 +112,7 @@ class LayoutctlContractTests(unittest.TestCase):
             patch.object(layoutctl, "import_profile", return_value=("imported", profile)),
         ):
             cases = (
-                (["profile", "show", "coding"], {"profileId": "coding", "profile": profile}),
+                (["profile", "show", "coding"], {"profileId": "coding", "profile": profile, "details": []}),
                 (["profile", "rename", "coding", "Writing"], {"profileId": "coding", "profile": profile}),
                 (
                     ["profile", "duplicate", "coding", "coding-copy"],
@@ -127,6 +127,24 @@ class LayoutctlContractTests(unittest.TestCase):
                     self.assertEqual(exit_code, layoutctl.EXIT_OK)
                     self.assertEqual(response["status"], "ok")
                     self.assertEqual(response["data"], expected_data)
+
+    def test_profile_show_keeps_profile_unchanged_and_adds_safe_derived_details(self) -> None:
+        profile = {
+            "name": "Coding",
+            "tiled": {"nodes": [{"id": "window-1", "app": {"desktopId": "code", "wmClass": "Code", "ordinal": 1}}]},
+            "floating": [],
+        }
+        metadata = {"displayName": "Code", "genericName": "Code Editor", "categories": ["Development"], "kind": "application"}
+        with (
+            patch.object(layoutctl, "read_profile", return_value=profile),
+            patch.object(layoutctl, "desktop_entry_metadata", return_value=metadata),
+        ):
+            exit_code, response = layoutctl.execute(["profile", "show", "coding"])
+
+        self.assertEqual(exit_code, layoutctl.EXIT_OK)
+        self.assertEqual(response["data"]["profile"], profile)
+        self.assertEqual(response["data"]["details"][0]["metadata"], metadata)
+        self.assertNotIn("Exec", response["data"]["details"][0])
 
     def test_delete_requires_confirmation_before_the_store_is_called(self) -> None:
         with patch.object(layoutctl, "delete_profile") as delete:

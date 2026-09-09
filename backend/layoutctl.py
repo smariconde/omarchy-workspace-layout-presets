@@ -22,7 +22,7 @@ if __package__ in (None, ""):  # pragma: no cover - taken only by `backend/layou
 
 from backend.capture import CaptureError, SystemHyprctlReader, capture_current_workspace
 from backend.bridge_attestation import AttestationError, read_attestation, validate_attestation
-from backend.launchers import desktop_entry_command
+from backend.launchers import desktop_entry_command, desktop_entry_metadata
 from backend.profile_store import (
     ProfileAlreadyExistsError,
     ProfileError,
@@ -233,7 +233,22 @@ def execute(
     if args.command == "profile":
         try:
             if args.profile_action == "show":
-                return EXIT_OK, result_ok({"profileId": args.profile_id, "profile": read_profile(args.profile_id)})
+                profile = read_profile(args.profile_id)
+                details = []
+                for placement, nodes in (("tiled", profile["tiled"]["nodes"]), ("floating", profile["floating"])):
+                    for node in nodes:
+                        app = node["app"]
+                        metadata = desktop_entry_metadata(app["desktopId"]) if app["desktopId"] else None
+                        details.append(
+                            {
+                                "id": node["id"],
+                                "placement": placement,
+                                "wmClass": app["wmClass"],
+                                "ordinal": app["ordinal"],
+                                "metadata": metadata,
+                            }
+                        )
+                return EXIT_OK, result_ok({"profileId": args.profile_id, "profile": profile, "details": details})
             if args.profile_action == "rename":
                 profile = rename_profile(args.profile_id, args.name)
                 return EXIT_OK, result_ok({"profileId": args.profile_id, "profile": profile})

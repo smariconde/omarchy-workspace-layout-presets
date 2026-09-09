@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from backend.launchers import LauncherError, desktop_entry_command, resolve_desktop_id
+from backend.launchers import LauncherError, desktop_entry_command, desktop_entry_metadata, resolve_desktop_id
 
 
 class LauncherResolutionTests(unittest.TestCase):
@@ -47,3 +47,36 @@ class LauncherResolutionTests(unittest.TestCase):
                 desktop_entry_command("files", directories=[directory])
             with self.assertRaises(LauncherError):
                 desktop_entry_command("shell", directories=[directory])
+
+    def test_reads_display_metadata_and_classifies_omarchy_webapps_without_leaking_exec(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = Path(temporary_directory)
+            (directory / "code.desktop").write_text(
+                "[Desktop Entry]\nType=Application\nName=Code\nGenericName=Code Editor\n"
+                "Categories=Development;IDE;\nExec=code\n",
+                encoding="utf-8",
+            )
+            (directory / "YouTube.desktop").write_text(
+                "[Desktop Entry]\nType=Application\nName=YouTube\nCategories=AudioVideo;\n"
+                "Exec=omarchy-launch-webapp https://youtube.com/\n",
+                encoding="utf-8",
+            )
+
+            app = desktop_entry_metadata("code", directories=[directory])
+            webapp = desktop_entry_metadata("YouTube", directories=[directory])
+
+            self.assertEqual(app["displayName"], "Code")
+            self.assertEqual(app["genericName"], "Code Editor")
+            self.assertEqual(app["kind"], "application")
+            self.assertEqual(webapp["kind"], "webapp")
+            self.assertNotIn("Exec", app)
+            self.assertNotIn("Exec", webapp)
+            self.assertNotIn("youtube.com", str(webapp))
+
+    def test_metadata_falls_back_cleanly_for_missing_or_malformed_entries(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = Path(temporary_directory)
+            (directory / "broken.desktop").write_text("not a desktop entry", encoding="utf-8")
+
+            self.assertIsNone(desktop_entry_metadata("missing", directories=[directory]))
+            self.assertIsNone(desktop_entry_metadata("broken", directories=[directory]))

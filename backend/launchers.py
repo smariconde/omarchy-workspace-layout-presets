@@ -12,7 +12,7 @@ import os
 import re
 import shlex
 from pathlib import Path
-from typing import Iterable, Mapping
+from typing import Any, Iterable, Mapping
 
 
 class LauncherError(ValueError):
@@ -21,6 +21,8 @@ class LauncherError(ValueError):
 
 _DESKTOP_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}")
 _SHELL_EXECUTABLES = {"ash", "bash", "csh", "dash", "fish", "ksh", "sh", "tcsh", "zsh"}
+_WEBAPP_EXECUTABLE = "omarchy-launch-webapp"
+_WEBAPP_HANDLER_PREFIX = "omarchy-webapp-handler-"
 
 
 def application_directories(environment: Mapping[str, str] | None = None) -> list[Path]:
@@ -114,6 +116,60 @@ def _desktop_entry_path(desktop_id: str, directories: Iterable[Path]) -> Path | 
         except OSError:
             continue
     return None
+
+
+def _localized_value(entry: Mapping[str, str], key: str, environment: Mapping[str, str] | None) -> str | None:
+    """Read a safe display field with a deterministic locale fallback."""
+    language = (environment or {}).get("LANG", "").split(".", 1)[0].replace("-", "_")
+    candidates = [f"{key}[{language}]", f"{key}[{language.split('_', 1)[0]}]", key]
+    for candidate in candidates:
+        value = entry.get(candidate, "").strip()
+        if value:
+            return value[:256]
+    return None
+
+
+def desktop_entry_metadata(
+    desktop_id: str,
+    *,
+    directories: Iterable[Path] | None = None,
+    environment: Mapping[str, str] | None = None,
+) -> dict[str, Any] | None:
+    """Return display-only metadata for a desktop entry.
+
+    The returned object intentionally excludes ``Exec`` and every value parsed
+    from it.  The executable is inspected only to classify known Omarchy
+    webapps; URLs and launch arguments never cross this interface.
+    """
+    search_directories = list(application_directories(environment) if directories is None else directories)
+    path = _desktop_entry_path(desktop_id, search_directories)
+    if path is None:
+        return None
+    parser = configparser.ConfigParser(interpolation=None)
+    parser.optionxform = str
+    try:
+        with path.open(encoding="utf-8") as desktop_file:
+            parser.read_file(desktop_file)
+    except (OSError, UnicodeError, configparser.Error):
+        return None
+    if not parser.has_section("Desktop Entry"):
+        return None
+    entry = parser["Desktop Entry"]
+    if entry.get("Type", "Application") != "Application" or entry.get("Hidden", "false").lower() == "true":
+        return None
+    executable = entry.get("Exec", "").strip()
+    try:
+        executable_name = Path(shlex.split(executable, posix=True)[0]).name.casefold() if executable else ""
+    except (ValueError, IndexError):
+        executable_name = ""
+    kind = "webapp" if executable_name == _WEBAPP_EXECUTABLE or executable_name.startswith(_WEBAPP_HANDLER_PREFIX) else "application"
+    categories = [value for value in entry.get("Categories", "").split(";") if value][:20]
+    return {
+        "displayName": _localized_value(entry, "Name", environment),
+        "genericName": _localized_value(entry, "GenericName", environment),
+        "categories": categories,
+        "kind": kind,
+    }
 
 
 def desktop_entry_command(
