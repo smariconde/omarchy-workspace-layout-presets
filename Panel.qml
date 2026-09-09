@@ -37,7 +37,7 @@ Ui.Panel {
         return fallback
     }
     function refresh() {
-        statusText = "Cargando perfiles…"
+        statusText = "Loading layouts…"
         client.listProfiles()
     }
     function choose(profileId) {
@@ -49,7 +49,7 @@ Ui.Panel {
         client.showProfile(profileId)
     }
     function runAction(action, text) {
-        if (!action()) statusText = "El backend está ocupado."
+        if (!action()) statusText = "The backend is busy."
         else statusText = text
     }
 
@@ -60,9 +60,9 @@ Ui.Panel {
                 if (response && response.status === "ok") {
                     root.profiles = response.data.profiles || []
                     root.statusText = root.profiles.length
-                        ? "Seleccioná un preset para ver sus acciones."
-                        : "Todavía no hay presets guardados."
-                } else root.statusText = root.messageFrom(response, stderrText || "No se pudo listar presets.")
+                        ? "Select a layout to see its actions."
+                        : "No saved layouts yet."
+                } else root.statusText = root.messageFrom(response, stderrText || "Could not list layouts.")
                 return
             }
             if (response && response.status === "ok") {
@@ -76,18 +76,18 @@ Ui.Panel {
                 if (operation === "capture" || operation === "profile-rename"
                         || operation === "profile-duplicate" || operation === "profile-delete"
                         || operation === "profile-import") {
-                    root.statusText = "Operación completada."
+                    root.statusText = "Operation completed."
                     root.refresh()
                 }
                 if (operation === "restore") {
                     root.statusText = response.data.failures && response.data.failures.length
-                        ? "Restauración parcial: revisá el resultado."
-                        : "Restauración completada."
+                        ? "Partial restore: review the result."
+                        : "Restore completed."
                     root.confirmRestore = false
                     root.planData = null
                 }
             } else {
-                root.statusText = root.messageFrom(response, stderrText || "La operación fue bloqueada.")
+                root.statusText = root.messageFrom(response, stderrText || "The operation was blocked.")
                 root.confirmRestore = false
                 root.confirmDelete = false
             }
@@ -119,7 +119,7 @@ Ui.Panel {
                     font.weight: Font.Medium
                 }
                 Text {
-                    text: "Presets para el workspace activo"
+                    text: "Layouts for the active workspace"
                     color: Color.popups.text
                     opacity: 0.58
                     font.family: Style.font.family
@@ -129,7 +129,7 @@ Ui.Panel {
 
                 Text {
                     width: parent.width
-                    text: "Guardá y restaurá sólo el workspace activo y vacío."
+                    text: "Save and restore layouts only in the active, empty workspace."
                     color: Color.popups.text
                     opacity: 0.66
                     wrapMode: Text.WordWrap
@@ -142,7 +142,7 @@ Ui.Panel {
                     color: Util.alpha(Color.popups.text, 0.22)
                 }
 
-                Ui.PanelSectionHeader { text: "Guardar preset" }
+                Ui.PanelSectionHeader { text: "Save layout" }
                 Row {
                     width: parent.width
                     spacing: Style.spacing.controlGap
@@ -150,7 +150,7 @@ Ui.Panel {
                         id: captureName
                         width: parent.width - saveButton.width - parent.spacing
                         height: Style.spacing.controlHeight
-                        placeholderText: "Nombre del preset"
+                        placeholderText: "Layout name"
                         selectByMouse: true
                         onAccepted: saveButton.clicked()
                     }
@@ -158,22 +158,22 @@ Ui.Panel {
                         id: saveButton
                         width: Style.space(86)
                         height: Style.spacing.controlHeight
-                        text: "Guardar"
+                        text: "Save"
                         foreground: Color.accent
                         bordered: true
                         onClicked: {
                             if (!captureName.text.trim()) {
-                                root.statusText = "Escribí un nombre."
+                                root.statusText = "Enter a layout name."
                                 captureName.forceActiveFocus()
                                 return
                             }
-                            root.runAction(function() { return client.capture(captureName.text.trim()) }, "Guardando preset…")
+                            root.runAction(function() { return client.capture(captureName.text.trim()) }, "Saving layout…")
                             captureName.text = ""
                         }
                     }
                 }
 
-                Ui.PanelSectionHeader { text: "Presets" }
+                Ui.PanelSectionHeader { text: "Saved layouts" }
                 Ui.BorderSurface {
                     width: parent.width
                     height: Style.space(116)
@@ -203,7 +203,7 @@ Ui.Panel {
                         Text {
                             anchors.centerIn: parent
                             visible: root.profiles.length === 0
-                            text: "No hay presets guardados"
+                            text: "No saved layouts yet"
                             color: Color.popups.text
                             opacity: 0.55
                             font.family: Style.font.family
@@ -218,7 +218,7 @@ Ui.Panel {
                     Ui.Button {
                         width: (parent.width - Style.spacing.xs * 2) / 3
                         height: Style.spacing.controlHeight
-                        text: "Inspeccionar"
+                        text: "View details"
                         enabled: root.selectedProfile !== ""
                         bordered: true
                         onClicked: client.showProfile(root.selectedProfile)
@@ -226,20 +226,20 @@ Ui.Panel {
                     Ui.Button {
                         width: (parent.width - Style.spacing.xs * 2) / 3
                         height: Style.spacing.controlHeight
-                        text: "Planificar"
+                        text: "Preview restore"
                         enabled: root.selectedProfile !== ""
                         bordered: true
                         foreground: Color.accent
                         onClicked: {
                             root.planData = null
                             client.plan(root.selectedProfile)
-                            root.statusText = "Preparando vista previa…"
+                            root.statusText = "Preparing restore preview…"
                         }
                     }
                     Ui.Button {
                         width: (parent.width - Style.spacing.xs * 2) / 3
                         height: Style.spacing.controlHeight
-                        text: "Borrar"
+                        text: "Delete"
                         enabled: root.selectedProfile !== ""
                         foreground: Color.urgent
                         bordered: true
@@ -262,7 +262,7 @@ Ui.Panel {
                         Text {
                             width: parent.width - deleteConfirmButton.width - parent.spacing
                             anchors.verticalCenter: parent.verticalCenter
-                            text: "¿Eliminar “" + root.selectedProfile + "”?"
+                            text: "Delete “" + root.selectedProfile + "”?"
                             color: Color.popups.text
                             elide: Text.ElideRight
                             font.family: Style.font.family
@@ -328,7 +328,7 @@ Ui.Panel {
                         Text {
                             width: parent.width - restoreConfirmButton.width - parent.spacing
                             anchors.verticalCenter: parent.verticalCenter
-                            text: "Restaurar en workspace vacío"
+                            text: "Restore in an empty workspace"
                             color: Color.popups.text
                             elide: Text.ElideRight
                             font.family: Style.font.family
@@ -356,18 +356,18 @@ Ui.Panel {
                         id: renameInput
                         width: parent.width - renameButton.width - parent.spacing
                         height: Style.spacing.controlHeight
-                        placeholderText: "Nuevo nombre"
+                        placeholderText: "New layout name"
                     }
                     Ui.Button {
                         id: renameButton
                         width: Style.space(92)
                         height: Style.spacing.controlHeight
-                        text: "Renombrar"
+                        text: "Rename"
                         enabled: root.selectedProfile !== ""
                         bordered: true
                         onClicked: {
                             if (renameInput.text.trim()) client.rename(root.selectedProfile, renameInput.text.trim())
-                            else root.statusText = "Escribí un nombre nuevo."
+                            else root.statusText = "Enter a new layout name."
                         }
                     }
                 }
@@ -375,7 +375,7 @@ Ui.Panel {
                 Text {
                     width: parent.width
                     text: root.statusText
-                    color: root.statusText.indexOf("bloque") >= 0 || root.statusText.indexOf("No se pudo") >= 0
+                    color: root.statusText.indexOf("blocked") >= 0 || root.statusText.indexOf("Could not") >= 0
                         ? Color.urgent : Color.popups.text
                     opacity: 0.75
                     wrapMode: Text.WordWrap

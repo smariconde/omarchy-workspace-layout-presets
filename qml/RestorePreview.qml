@@ -24,7 +24,7 @@ Item {
                 spacing: Style.spacing.sm
                 Text {
                     width: parent.width - previewMode.width - parent.spacing
-                    text: root.plan ? "Vista previa de restauración" : ""
+                    text: root.plan ? "Restore preview" : ""
                     color: Color.popups.text
                     font.family: Style.font.family
                     font.pixelSize: Style.font.title
@@ -44,7 +44,7 @@ Item {
             Text {
                 width: parent.width
                 text: root.plan
-                    ? ("Lanzar " + root.plan.summary.launch + " · omitir " + root.plan.summary.skip
+                    ? ("Launch " + root.plan.summary.launch + " · skip " + root.plan.summary.skip
                        + " · tiled " + root.plan.summary.tiled + " · floating " + root.plan.summary.floating)
                     : ""
                 color: Color.popups.text
@@ -71,7 +71,7 @@ Item {
                     text: root.plan
                         ? ((root.plan.warnings && root.plan.warnings.length)
                            ? root.plan.warnings[0].message
-                           : "Listo para restaurar en un workspace vacío.")
+                           : "Ready to restore in an empty workspace.")
                         : ""
                     color: root.plan && root.plan.warnings && root.plan.warnings.length
                         ? Color.accent : Color.popups.text
@@ -86,7 +86,7 @@ Item {
                     id: restoreButton
                     width: Style.space(112)
                     height: Style.spacing.controlHeight
-                    text: "Restaurar aquí"
+                    text: "Restore here"
                     foreground: Color.accent
                     bordered: true
                     enabled: root.plan !== null
