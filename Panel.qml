@@ -22,13 +22,10 @@ Ui.Panel {
     property string statusText: ""
 
     readonly property int panelWidth: Style.space(410)
-    readonly property int panelHeight: Style.space(500
-        + (planData ? 132 : 0)
-        + (selectedProfileData ? 190 : 0)
-        + (confirmDelete ? 38 : 0)
-        + (confirmRestore ? 38 : 0))
+    readonly property int detailsListHeight: Math.min(
+        Style.space(128), root.selectedProfileDetails.length * Style.space(18))
     implicitWidth: panelWidth
-    implicitHeight: panelHeight
+    implicitHeight: popup.contentHeight
 
     Plugin.LayoutctlClient { id: client }
 
@@ -108,31 +105,40 @@ Ui.Panel {
         bar: root.bar
         open: root.opened
         centerOnBar: false
-        contentWidth: root.panelWidth
-        contentHeight: root.panelHeight
+        contentWidth: popup.fittedContentWidth(root.panelWidth)
+        contentHeight: popup.fittedContentHeight(contentColumn.implicitHeight, Style.space(600))
 
-        Column {
+        Flickable {
+            id: contentScroll
             anchors.fill: parent
-            spacing: Style.spacing.panelGap
+            contentWidth: width
+            contentHeight: contentColumn.implicitHeight
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            interactive: contentHeight > height
 
             Column {
+                id: contentColumn
                 width: parent.width
-                spacing: Style.spacing.xxs
-                Text {
-                    text: "Workspace presets"
-                    color: Color.popups.text
-                    font.family: Style.font.family
-                    font.pixelSize: Style.font.heading
-                    font.weight: Font.Medium
+                spacing: Style.spacing.panelGap
+                Column {
+                    width: parent.width
+                    spacing: Style.spacing.xxs
+                    Text {
+                        text: "Workspace presets"
+                        color: Color.popups.text
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.heading
+                        font.weight: Font.Medium
+                    }
+                    Text {
+                        text: "For the active workspace"
+                        color: Color.popups.text
+                        opacity: 0.58
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.bodySmall
+                    }
                 }
-                Text {
-                    text: "For the active workspace"
-                    color: Color.popups.text
-                    opacity: 0.58
-                    font.family: Style.font.family
-                    font.pixelSize: Style.font.bodySmall
-                }
-            }
 
                 Text {
                     width: parent.width
@@ -292,7 +298,8 @@ Ui.Panel {
                 Ui.BorderSurface {
                     visible: root.selectedProfileData !== null
                     width: parent.width
-                    height: root.selectedProfileData ? Style.space(190) : 0
+                    height: root.selectedProfileData
+                        ? Style.space(52) + root.detailsListHeight : 0
                     color: Util.alpha(Color.popups.text, 0.035)
                     borderSpec: Border.flat(Util.alpha(Color.popups.text, 0.18), Style.normalBorderWidth)
                     radius: Style.cornerRadius
@@ -326,7 +333,7 @@ Ui.Panel {
                         }
                         ListView {
                             width: parent.width
-                            height: Style.space(128)
+                            height: root.detailsListHeight
                             clip: true
                             spacing: Style.spacing.xxs
                             model: root.selectedProfileDetails
@@ -407,5 +414,6 @@ Ui.Panel {
                     Component.onCompleted: root.refresh()
                 }
             }
+        }
     }
 }

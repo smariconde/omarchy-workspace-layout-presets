@@ -18,3 +18,10 @@ class UserInterfaceLanguageTests(unittest.TestCase):
         self.assertIn('text: "Delete"', source)
         for hidden_action in ('View details', 'Preview restore', 'Rename'):
             self.assertNotIn(hidden_action, source)
+
+    def test_panel_size_is_content_driven_and_scrolls_when_needed(self) -> None:
+        source = (Path(__file__).resolve().parent.parent / "Panel.qml").read_text(encoding="utf-8")
+        self.assertNotIn("panelHeight", source)
+        self.assertIn("fittedContentHeight(contentColumn.implicitHeight", source)
+        self.assertIn("contentHeight: contentColumn.implicitHeight", source)
+        self.assertIn("interactive: contentHeight > height", source)
