@@ -4,7 +4,7 @@ import Quickshell.Io
 // The sole QML-to-backend process boundary. It exposes narrowly scoped methods
 // whose argv arrays are fixed in source; profile content never becomes shell
 // source or an executable command.
-QtObject {
+Item {
     id: root
 
     readonly property string backendExecutable: localFilePath(Qt.resolvedUrl("../backend/layoutctl.py"))
@@ -43,7 +43,7 @@ QtObject {
     function exportProfile(profileId, destination) { return run("profile-export", ["profile", "export", profileId, destination]) }
     function importProfile(source) { return run("profile-import", ["profile", "import", source]) }
 
-    property Process processRunner: Process {
+    Process {
         id: process
         running: false
         command: []
