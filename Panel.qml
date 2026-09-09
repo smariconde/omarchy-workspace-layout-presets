@@ -100,7 +100,7 @@ Ui.Panel {
         contentWidth: root.panelWidth
         contentHeight: root.panelHeight
 
-        BorderSurface {
+        Ui.BorderSurface {
             anchors.fill: parent
             color: Color.popups.background
             borderSpec: Border.surfaceSpec("popups", "border", Color.popups.border, Math.max(1, Style.space(2)))
@@ -192,7 +192,7 @@ Ui.Panel {
                 }
 
                 Ui.PanelSectionHeader { text: "Presets" }
-                BorderSurface {
+                Ui.BorderSurface {
                     width: parent.width
                     height: Style.space(116)
                     color: Util.alpha(Color.popups.text, 0.035)
@@ -265,7 +265,7 @@ Ui.Panel {
                     }
                 }
 
-                BorderSurface {
+                Ui.BorderSurface {
                     visible: root.confirmDelete
                     width: parent.width
                     height: Style.space(38)
@@ -308,7 +308,7 @@ Ui.Panel {
                     onRestoreRequested: root.confirmRestore = true
                 }
 
-                BorderSurface {
+                Ui.BorderSurface {
                     visible: root.selectedProfileData !== null
                     width: parent.width
                     height: Style.space(42)
@@ -331,7 +331,7 @@ Ui.Panel {
                     }
                 }
 
-                BorderSurface {
+                Ui.BorderSurface {
                     visible: root.confirmRestore
                     width: parent.width
                     height: Style.space(38)

@@ -8,7 +8,7 @@ Item {
     signal restoreRequested()
     visible: plan !== null
 
-    BorderSurface {
+    Ui.BorderSurface {
         anchors.fill: parent
         color: Util.alpha(Color.accent, 0.06)
         borderSpec: Border.flat(Util.alpha(Color.accent, 0.5), Style.normalBorderWidth)
