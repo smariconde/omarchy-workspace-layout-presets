@@ -1,6 +1,6 @@
 # Hoja de ruta de desarrollo
 
-**Estado:** M6 implementado · próxima sesión: validación visual en sesión Omarchy
+**Estado:** M6 implementado · próxima sesión: replay end-to-end en sesión Omarchy
 **Objetivo:** una primera beta de perfiles de layout para un workspace
 `dwindle` en Omarchy 4.x.
 
@@ -179,9 +179,9 @@ contra un Hyprland real: el workspace activo ocupado responde `blocked` con
 bloquea sin cambiar nada.
 
 **Progreso de esta sesión:** el probe QML ahora genera una atestación efímera
-privada después de un dispatch exitoso; `layoutctl restore` la valida contra la
-versión actual antes de habilitar el replay. La suite tiene 76 pruebas (2 se
-omiten sin sesión Wayland).
+privada después de un dispatch exitoso; el flujo normal lo ejecuta al confirmar
+**Restore** y `layoutctl restore` la valida contra la versión actual antes de
+habilitar el replay. La interfaz no depende de evidencia creada manualmente.
 Queda pendiente la prueba end-to-end del replay controlado.
 
 ### M6 — Interfaz V1 — Hecho
@@ -195,8 +195,13 @@ Queda pendiente la prueba end-to-end del replay controlado.
 
 **Cierre:** el flujo completo de la beta funcional está disponible desde el menú.
 
-**Nota de validación:** qmllint y omarchy plugin validate no están instalados
-en este entorno; las pruebas QML con Wayland quedan para la matriz manual de M7.
+**Ajuste de UX:** **Use** crea el preview y **Restore** confirma y ejecuta. Se
+eliminó la segunda confirmación **Restore here**; un preview vencido exige
+generar otro con **Use**.
+
+**Nota de validación:** `omarchy plugin validate .` pasa en este entorno;
+`qmllint` no está instalado y las pruebas QML con Wayland quedan para la matriz
+manual de M7.
 
 ## Secuencia posterior
 

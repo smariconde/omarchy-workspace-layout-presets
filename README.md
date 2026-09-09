@@ -12,8 +12,8 @@ Dwindle tree inference for supported slicing geometries, and guarded restore
 replay. Capture uses JSON-only Hyprland queries and desktop-entry IDs; it does
 not persist process command lines or execute launchers. `plan` previews a
 restore and refuses a non-empty workspace; `restore` revalidates and consumes
-a single-use token after the QML probe records short-lived evidence for the
-exact Lua bridge.
+a single-use token after the QML client records fresh, short-lived evidence
+for the exact Lua bridge as part of the confirmed restore flow.
 
 ## Safety model
 

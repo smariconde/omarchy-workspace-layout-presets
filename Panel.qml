@@ -17,7 +17,6 @@ Ui.Panel {
     property var selectedProfileData: null
     property var selectedProfileDetails: []
     property var planData: null
-    property bool confirmRestore: false
     property bool confirmDelete: false
     property string statusText: ""
 
@@ -43,7 +42,6 @@ Ui.Panel {
         selectedProfileData = null
         selectedProfileDetails = []
         planData = null
-        confirmRestore = false
         confirmDelete = false
         client.showProfile(profileId)
     }
@@ -73,7 +71,6 @@ Ui.Panel {
                     var preview = response.data
                     preview.warnings = response.warnings || []
                     root.planData = preview
-                    root.confirmRestore = false
                 }
                 if (operation === "capture" || operation === "profile-rename"
                         || operation === "profile-duplicate" || operation === "profile-delete"
@@ -87,12 +84,10 @@ Ui.Panel {
                     root.statusText = response.data.failures && response.data.failures.length
                         ? "Partial restore: review the result."
                         : "Layout restored successfully."
-                    root.confirmRestore = false
                     root.planData = null
                 }
             } else {
                 root.statusText = root.messageFrom(response, stderrText || "The operation was blocked.")
-                root.confirmRestore = false
                 root.confirmDelete = false
             }
         }
@@ -292,7 +287,10 @@ Ui.Panel {
                     width: parent.width
                     height: root.planData ? Style.space(132) : 0
                     plan: root.planData
-                    onRestoreRequested: root.confirmRestore = true
+                    busy: client.running
+                    onRestoreRequested: root.runAction(
+                        function() { return client.restore(root.planData.planId) },
+                        "Verifying compatibility…")
                 }
 
                 Ui.BorderSurface {
@@ -355,42 +353,6 @@ Ui.Panel {
                                         ? " · " + metadata.categories.join(", ") : ""
                                     return name + " · " + kind + category + " · " + modelData.placement
                                 }
-                            }
-                        }
-                    }
-                }
-
-                Ui.BorderSurface {
-                    visible: root.confirmRestore
-                    width: parent.width
-                    height: root.confirmRestore ? Style.space(38) : 0
-                    color: Util.alpha(Color.accent, 0.12)
-                    borderSpec: Border.flat(Util.alpha(Color.accent, 0.62), Style.normalBorderWidth)
-                    radius: Style.cornerRadius
-                    Row {
-                        anchors.fill: parent
-                        anchors.leftMargin: Style.spacing.sm
-                        anchors.rightMargin: Style.spacing.xs
-                        spacing: Style.spacing.sm
-                        Text {
-                            width: parent.width - restoreConfirmButton.width - parent.spacing
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: "Restore to an empty workspace"
-                            color: Color.popups.text
-                            elide: Text.ElideRight
-                            font.family: Style.font.family
-                            font.pixelSize: Style.font.bodySmall
-                        }
-                        Ui.Button {
-                            id: restoreConfirmButton
-                            width: Style.space(82)
-                            height: Style.spacing.controlHeight
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: "Restore here"
-                            foreground: Color.accent
-                            onClicked: {
-                                root.confirmRestore = false
-                                client.restore(root.planData.planId)
                             }
                         }
                     }

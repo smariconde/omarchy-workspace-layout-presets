@@ -5,8 +5,24 @@ import qs.Ui as Ui
 Item {
     id: root
     property var plan: null
+    property bool busy: false
+    property double nowMillis: Date.now()
+    readonly property bool expired: {
+        if (!plan || typeof plan.expiresAt !== "string") return true
+        const expiresAt = Date.parse(plan.expiresAt)
+        return isNaN(expiresAt) || nowMillis >= expiresAt
+    }
     signal restoreRequested()
     visible: plan !== null
+
+    onPlanChanged: nowMillis = Date.now()
+
+    Timer {
+        interval: 1000
+        running: root.visible
+        repeat: true
+        onTriggered: root.nowMillis = Date.now()
+    }
 
     Ui.BorderSurface {
         anchors.fill: parent
@@ -69,11 +85,13 @@ Item {
                 Text {
                     width: parent.width - restoreButton.width - parent.spacing
                     text: root.plan
-                        ? ((root.plan.warnings && root.plan.warnings.length)
+                        ? (root.expired
+                           ? "Preview expired. Press Use again."
+                           : (root.plan.warnings && root.plan.warnings.length)
                            ? root.plan.warnings[0].message
                            : "Ready to restore in an empty workspace.")
                         : ""
-                    color: root.plan && root.plan.warnings && root.plan.warnings.length
+                    color: root.expired || (root.plan && root.plan.warnings && root.plan.warnings.length)
                         ? Color.accent : Color.popups.text
                     opacity: 0.78
                     wrapMode: Text.WordWrap
@@ -89,7 +107,7 @@ Item {
                     text: "Restore"
                     foreground: Color.accent
                     bordered: true
-                    enabled: root.plan !== null
+                    enabled: root.plan !== null && !root.expired && !root.busy
                     onClicked: root.restoreRequested()
                 }
             }

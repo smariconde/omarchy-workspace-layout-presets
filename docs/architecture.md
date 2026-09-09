@@ -226,8 +226,12 @@ en modo detached: Quickshell lo termina al recargar o cerrar la shell.
 Las futuras operaciones deben ser métodos explícitos del cliente con arrays
 creados en código. No se añadirá un método genérico que reciba un comando, una
 cadena de shell o argumentos derivados de perfiles. El probe del puente usa
-el mismo límite: consulta el workspace, ejecuta sólo el dispatch Lua fijo de
-focus y llama al helper de atestación con el ID entero validado.
+el mismo límite: `qml/BridgeProbe.qml` consulta el workspace cuando la persona
+confirma **Restore**, ejecuta sólo el dispatch Lua fijo de focus y llama al
+helper de atestación con el ID entero validado. Sólo después de obtener
+evidencia fresca `LayoutctlClient` invoca
+`layoutctl restore <approved-plan-id>`. Un fallo del probe no consume el plan
+ni lanza aplicaciones.
 
 Como QML ejecuta el archivo por ruta absoluta y no como módulo, `layoutctl.py`
 añade el directorio del plugin a `sys.path` cuando se invoca sin paquete y usa
