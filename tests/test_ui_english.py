@@ -13,8 +13,8 @@ class UserInterfaceLanguageTests(unittest.TestCase):
 
     def test_main_panel_exposes_only_the_three_primary_actions(self) -> None:
         source = (Path(__file__).resolve().parent.parent / "Panel.qml").read_text(encoding="utf-8")
-        self.assertIn('text: "Save current layout"', source)
-        self.assertIn('text: "Use layout"', source)
-        self.assertIn('text: "Delete layout"', source)
+        self.assertIn('text: "Save"', source)
+        self.assertIn('text: "Use"', source)
+        self.assertIn('text: "Delete"', source)
         for hidden_action in ('View details', 'Preview restore', 'Rename'):
             self.assertNotIn(hidden_action, source)

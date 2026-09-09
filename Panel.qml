@@ -38,7 +38,7 @@ Ui.Panel {
         return fallback
     }
     function refresh() {
-        statusText = "Loading layouts…"
+        statusText = "Loading presets…"
         client.listProfiles()
     }
     function choose(profileId) {
@@ -62,9 +62,9 @@ Ui.Panel {
                 if (response && response.status === "ok") {
                     root.profiles = response.data.profiles || []
                     root.statusText = root.profiles.length
-                        ? "Select a layout to see its details and actions."
-                        : "No saved layouts yet."
-                } else root.statusText = root.messageFrom(response, stderrText || "Could not list layouts.")
+                        ? "Select a preset to see its details and actions."
+                        : "No saved presets yet."
+                } else root.statusText = root.messageFrom(response, stderrText || "Could not list presets.")
                 return
             }
             if (response && response.status === "ok") {
@@ -119,14 +119,14 @@ Ui.Panel {
                 width: parent.width
                 spacing: Style.spacing.xxs
                 Text {
-                    text: "Workspace layouts"
+                    text: "Workspace presets"
                     color: Color.popups.text
                     font.family: Style.font.family
                     font.pixelSize: Style.font.heading
                     font.weight: Font.Medium
                 }
                 Text {
-                    text: "Layouts for the active workspace"
+                    text: "For the active workspace"
                     color: Color.popups.text
                     opacity: 0.58
                     font.family: Style.font.family
@@ -136,7 +136,7 @@ Ui.Panel {
 
                 Text {
                     width: parent.width
-                    text: "Save and restore layouts only in the active, empty workspace."
+                    text: "Save and restore only in the active, empty workspace."
                     color: Color.popups.text
                     opacity: 0.66
                     wrapMode: Text.WordWrap
@@ -149,7 +149,7 @@ Ui.Panel {
                     color: Util.alpha(Color.popups.text, 0.22)
                 }
 
-                Ui.PanelSectionHeader { text: "Save current layout" }
+                Ui.PanelSectionHeader { text: "Save" }
                 Row {
                     width: parent.width
                     spacing: Style.spacing.controlGap
@@ -157,7 +157,7 @@ Ui.Panel {
                         id: captureName
                         width: parent.width - saveButton.width - parent.spacing
                         height: Style.spacing.controlHeight
-                        placeholderText: "Layout name"
+                        placeholderText: "Preset name"
                         selectByMouse: true
                         onAccepted: saveButton.clicked()
                     }
@@ -165,22 +165,22 @@ Ui.Panel {
                         id: saveButton
                         width: Style.space(142)
                         height: Style.spacing.controlHeight
-                        text: "Save current layout"
+                        text: "Save"
                         foreground: Color.accent
                         bordered: true
                         onClicked: {
                             if (!captureName.text.trim()) {
-                                root.statusText = "Enter a layout name."
+                                root.statusText = "Enter a preset name."
                                 captureName.forceActiveFocus()
                                 return
                             }
-                            root.runAction(function() { return client.capture(captureName.text.trim()) }, "Saving layout…")
+                            root.runAction(function() { return client.capture(captureName.text.trim()) }, "Saving preset…")
                             captureName.text = ""
                         }
                     }
                 }
 
-                Ui.PanelSectionHeader { text: "Saved layouts" }
+                Ui.PanelSectionHeader { text: "Saved presets" }
                 Ui.BorderSurface {
                     width: parent.width
                     height: Style.space(116)
@@ -210,7 +210,7 @@ Ui.Panel {
                         Text {
                             anchors.centerIn: parent
                             visible: root.profiles.length === 0
-                            text: "No saved layouts yet"
+                            text: "No saved presets yet"
                             color: Color.popups.text
                             opacity: 0.55
                             font.family: Style.font.family
@@ -225,20 +225,20 @@ Ui.Panel {
                     Ui.Button {
                         width: (parent.width - parent.spacing) / 2
                         height: Style.spacing.controlHeight
-                        text: "Use layout"
+                        text: "Use"
                         enabled: root.selectedProfile !== ""
                         bordered: true
                         foreground: Color.accent
                         onClicked: {
                             root.planData = null
                             client.plan(root.selectedProfile)
-                            root.statusText = "Preparing layout preview…"
+                            root.statusText = "Preparing preview…"
                         }
                     }
                     Ui.Button {
                         width: (parent.width - parent.spacing) / 2
                         height: Style.spacing.controlHeight
-                        text: "Delete layout"
+                        text: "Delete"
                         enabled: root.selectedProfile !== ""
                         foreground: Color.urgent
                         bordered: true
@@ -272,7 +272,7 @@ Ui.Panel {
                             width: Style.space(82)
                             height: Style.spacing.controlHeight
                             anchors.verticalCenter: parent.verticalCenter
-                            text: "Confirm delete"
+                            text: "Delete"
                             foreground: Color.urgent
                             onClicked: {
                                 root.confirmDelete = false
@@ -368,7 +368,7 @@ Ui.Panel {
                         Text {
                             width: parent.width - restoreConfirmButton.width - parent.spacing
                             anchors.verticalCenter: parent.verticalCenter
-                            text: "Restore in an empty workspace"
+                            text: "Restore to an empty workspace"
                             color: Color.popups.text
                             elide: Text.ElideRight
                             font.family: Style.font.family

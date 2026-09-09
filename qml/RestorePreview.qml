@@ -86,7 +86,7 @@ Item {
                     id: restoreButton
                     width: Style.space(112)
                     height: Style.spacing.controlHeight
-                    text: "Restore here"
+                    text: "Restore"
                     foreground: Color.accent
                     bordered: true
                     enabled: root.plan !== null
