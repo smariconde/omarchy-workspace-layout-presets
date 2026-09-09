@@ -43,7 +43,7 @@ QtObject {
     function exportProfile(profileId, destination) { return run("profile-export", ["profile", "export", profileId, destination]) }
     function importProfile(source) { return run("profile-import", ["profile", "import", source]) }
 
-    Process {
+    property Process processRunner: Process {
         id: process
         running: false
         command: []
