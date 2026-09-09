@@ -70,7 +70,7 @@ Ui.Panel {
         }
     }
 
-    KeyboardPanel {
+    Ui.KeyboardPanel {
         id: popup
         anchorItem: root.anchorItem
         owner: root.barIdentity
@@ -210,5 +210,4 @@ Ui.Panel {
             Item { width: 1; height: 1; Component.onCompleted: root.refresh() }
         }
     }
-}
 }
