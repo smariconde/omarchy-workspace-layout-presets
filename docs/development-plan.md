@@ -190,6 +190,12 @@ queda contenido en el contrato JSON.
 La espera posterior a cada lanzamiento toma una instantánea de las direcciones
 del workspace y sólo acepta una ventana nueva, evitando que dos webapps con la
 misma clase `Brave-browser` satisfagan accidentalmente la misma espera.
+La primera prueba manual completa reveló dos diferencias semánticas: el focus
+por clase elegía la webapp repetida incorrecta y la fracción 0–1 se enviaba sin
+convertir a la escala exacta 0.1–1.9 de Dwindle. El replay ahora conserva la
+dirección observada por `windowId`, enfoca por la dirección exacta de la ventana,
+convierte el ratio y comprueba la geometría final en vez de declarar éxito sólo
+por contar clases.
 Queda pendiente la prueba end-to-end del replay controlado.
 
 ### M6 — Interfaz V1 — Hecho

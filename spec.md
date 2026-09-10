@@ -171,11 +171,13 @@ Before any restore, present a plan with `launch`, `skip`, `warning` and
 
 The target workspace is focused before each controlled placement. The plugin
 rebuilds tiled windows in recorded order using Hyprland's Lua dispatch bridge:
-focus target -> `preselect` direction -> place window -> apply normalized
-ratio. It then enables and positions floating windows.
+focus the exact previously observed window address -> `preselect` direction ->
+place the new window -> translate its normalized side fraction to Hyprland's
+exact split-ratio scale. It then enables and positions floating windows.
 
-At the end, the plugin compares the resulting client list and geometry to the
-planned state and presents a concise success/partial-success report.
+At the end, the plugin compares the resulting client identities and tiled
+geometry to the planned state and presents a concise success/partial-success
+report. A matching application count alone is not considered success.
 
 ### FR-7 — Profile data and export
 

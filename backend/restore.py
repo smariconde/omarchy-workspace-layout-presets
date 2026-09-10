@@ -51,6 +51,8 @@ class ReplayExecutor(Protocol):
 
     def focus_target(self) -> None: ...
 
+    def focus_window(self, window_id: str, wm_class: str) -> None: ...
+
     def wait_for_window(self, window_id: str, wm_class: str, placement: str) -> bool: ...
 
     def verify(self, plan: Mapping[str, Any]) -> Mapping[str, Any]: ...
@@ -78,6 +80,7 @@ class SystemReplayExecutor:
         self._timeout = timeout
         self._poll_interval = poll_interval
         self._addresses_before_launch: set[str] = set()
+        self._window_addresses: dict[str, str] = {}
 
     def _target_addresses(self) -> set[str]:
         try:
@@ -131,8 +134,15 @@ class SystemReplayExecutor:
             ]
         )
 
+    def focus_window(self, window_id: str, wm_class: str) -> None:
+        del wm_class
+        address = self._window_addresses.get(window_id)
+        if address is None:
+            raise ReplayError(f"window {window_id!r} has no observed address")
+        self._run(_focus_address_dispatch(address))
+
     def wait_for_window(self, window_id: str, wm_class: str, placement: str) -> bool:
-        del window_id, placement
+        del placement
         deadline = self._clock() + self._timeout
         while self._clock() <= deadline:
             clients = self._reader.read_json("clients")
@@ -148,6 +158,7 @@ class SystemReplayExecutor:
                         and client["workspace"].get("id") == self._target_workspace_id
                     ):
                         self._addresses_before_launch.add(client["address"])
+                        self._window_addresses[window_id] = client["address"]
                         return True
             self._sleeper(self._poll_interval)
         return False
@@ -171,21 +182,117 @@ class SystemReplayExecutor:
         remaining = list(actual)
         matched = 0
         for entry in expected:
+            observed_address = self._window_addresses.get(entry.get("windowId"))
             for index, client in enumerate(remaining):
                 if (
-                    isinstance(client.get("class"), str)
+                    (observed_address is None or client.get("address") == observed_address)
+                    and isinstance(client.get("class"), str)
                     and isinstance(entry.get("wmClass"), str)
                     and client["class"].casefold() == entry["wmClass"].casefold()
                 ):
                     matched += 1
                     remaining.pop(index)
                     break
+        geometry_mismatched = _count_geometry_mismatches(
+            plan,
+            actual,
+            self._window_addresses,
+        )
         return {
             "expected": len(expected),
             "matched": matched,
             "unmatched": len(expected) - matched,
             "unexpected": len(remaining),
+            "geometryMismatched": geometry_mismatched,
         }
+
+
+def _expected_tiled_rectangles(plan: Mapping[str, Any]) -> dict[str, tuple[float, float, float, float]]:
+    """Rebuild normalized leaf rectangles from the approved split sequence."""
+    if plan.get("layoutMode") != "tree":
+        return {}
+    rectangles: dict[str, tuple[float, float, float, float]] = {}
+    for step in plan.get("steps", []):
+        if not isinstance(step, Mapping):
+            return {}
+        operation = step.get("op")
+        if operation == "anchor":
+            window_id = step.get("windowId")
+            if not isinstance(window_id, str):
+                return {}
+            rectangles[window_id] = (0.0, 0.0, 1.0, 1.0)
+        elif operation == "split":
+            focus, new = step.get("focus"), step.get("new")
+            direction, ratio = step.get("direction"), step.get("ratio")
+            if (
+                not isinstance(focus, str)
+                or not isinstance(new, str)
+                or direction not in {"left", "right", "up", "down"}
+                or isinstance(ratio, bool)
+                or not isinstance(ratio, (int, float))
+                or focus not in rectangles
+            ):
+                return {}
+            x, y, width, height = rectangles[focus]
+            fraction = float(ratio)
+            if direction == "right":
+                rectangles[focus] = (x, y, width * (1 - fraction), height)
+                rectangles[new] = (x + width * (1 - fraction), y, width * fraction, height)
+            elif direction == "left":
+                rectangles[focus] = (x + width * fraction, y, width * (1 - fraction), height)
+                rectangles[new] = (x, y, width * fraction, height)
+            elif direction == "down":
+                rectangles[focus] = (x, y, width, height * (1 - fraction))
+                rectangles[new] = (x, y + height * (1 - fraction), width, height * fraction)
+            else:
+                rectangles[focus] = (x, y + height * fraction, width, height * (1 - fraction))
+                rectangles[new] = (x, y, width, height * fraction)
+    return rectangles
+
+
+def _count_geometry_mismatches(
+    plan: Mapping[str, Any],
+    clients: list[Any],
+    window_addresses: Mapping[str, str],
+    *,
+    tolerance: float = 0.03,
+) -> int:
+    """Compare tiled leaf geometry while tolerating Hyprland gaps and borders."""
+    expected = _expected_tiled_rectangles(plan)
+    if not expected:
+        return 0
+    actual_by_id: dict[str, tuple[float, float, float, float]] = {}
+    by_address = {
+        client.get("address"): client
+        for client in clients
+        if isinstance(client, Mapping) and isinstance(client.get("address"), str)
+    }
+    for window_id in expected:
+        client = by_address.get(window_addresses.get(window_id))
+        if not isinstance(client, Mapping) or client.get("floating") is not False:
+            return len(expected)
+        at, size = client.get("at"), client.get("size")
+        if (
+            not isinstance(at, list) or len(at) != 2
+            or not isinstance(size, list) or len(size) != 2
+            or not all(isinstance(value, (int, float)) and not isinstance(value, bool) for value in [*at, *size])
+        ):
+            return len(expected)
+        actual_by_id[window_id] = (float(at[0]), float(at[1]), float(size[0]), float(size[1]))
+    left = min(rectangle[0] for rectangle in actual_by_id.values())
+    top = min(rectangle[1] for rectangle in actual_by_id.values())
+    right = max(rectangle[0] + rectangle[2] for rectangle in actual_by_id.values())
+    bottom = max(rectangle[1] + rectangle[3] for rectangle in actual_by_id.values())
+    width, height = right - left, bottom - top
+    if width <= 0 or height <= 0:
+        return len(expected)
+    mismatched = 0
+    for window_id, wanted in expected.items():
+        x, y, item_width, item_height = actual_by_id[window_id]
+        observed = ((x - left) / width, (y - top) / height, item_width / width, item_height / height)
+        if any(abs(first - second) > tolerance for first, second in zip(observed, wanted)):
+            mismatched += 1
+    return mismatched
 
 
 MIN_HYPRLAND_VERSION = (0, 56, 0)
@@ -290,9 +397,10 @@ def _lua_string(value: str) -> str:
     return '"' + "".join(escaped) + '"'
 
 
-def _focus_dispatch(wm_class: str) -> list[str]:
-    escaped_class = re.escape(wm_class)
-    selector = f"class:^{escaped_class}$"
+def _focus_address_dispatch(address: str) -> list[str]:
+    if not isinstance(address, str) or re.fullmatch(r"0x[0-9a-fA-F]+", address) is None:
+        raise ReplayError("Hyprland returned an invalid window address")
+    selector = f"address:{address}"
     expression = f"hl.dsp.focus({{ window = {_lua_string(selector)} }})"
     return ["hyprctl", "dispatch", expression]
 
@@ -309,6 +417,22 @@ def _number(value: Any, label: str) -> str:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ReplayError(f"{label} must be numeric")
     return format(value, ".17g")
+
+
+def _exact_split_ratio(direction: str, new_fraction: Any) -> float:
+    """Translate a saved side fraction to Hyprland's 0.1–1.9 exact scale.
+
+    With Omarchy's default ``dwindle:split_bias = 0``, Hyprland applies the
+    exact value to the top/left side and 1.0 means an even split. Profiles
+    instead store the fraction occupied by the newly inserted side.
+    """
+    if isinstance(new_fraction, bool) or not isinstance(new_fraction, (int, float)):
+        raise ReplayError("split ratio must be numeric")
+    top_left_fraction = float(new_fraction) if direction in {"left", "up"} else 1.0 - float(new_fraction)
+    exact = 2.0 * top_left_fraction
+    if not 0.1 <= exact <= 1.9:
+        raise ReplayError("split ratio is outside Hyprland's exact range")
+    return exact
 
 
 def build_replay_actions(
@@ -381,14 +505,15 @@ def build_replay_actions(
             if not isinstance(focus_node, Mapping):
                 raise ReplayError(f"split focus {focus!r} is not in the profile")
             wm_class = focus_node["app"]["wmClass"]
-            actions.append({"op": "dispatch", "argv": _focus_dispatch(wm_class), "windowId": focus})
+            actions.append({"op": "focus", "windowId": focus, "wmClass": wm_class})
             direction_code = {"left": "l", "right": "r", "up": "u", "down": "d"}[direction]
             actions.append({"op": "dispatch", "argv": _layout_dispatch(f"preselect {direction_code}")})
             launch(new_window, "tiled")
+            exact_ratio = _exact_split_ratio(direction, step.get("ratio"))
             actions.append(
                 {
                     "op": "dispatch",
-                    "argv": _layout_dispatch(f"splitratio {_number(step.get('ratio'), 'split ratio')} exact"),
+                    "argv": _layout_dispatch(f"splitratio {_number(exact_ratio, 'split ratio')} exact"),
                     "windowId": new_window,
                 }
             )
@@ -702,6 +827,8 @@ def restore_approved_plan(
                         )
                     )
                     break
+            elif action["op"] == "focus":
+                executor.focus_window(action["windowId"], action["wmClass"])
             elif action["op"] == "dispatch":
                 executor.dispatch(action["argv"])
             else:
@@ -716,7 +843,11 @@ def restore_approved_plan(
     if not failures:
         try:
             verification = executor.verify(current_plan.data)
-            if verification.get("unmatched", 0) or verification.get("unexpected", 0):
+            if (
+                verification.get("unmatched", 0)
+                or verification.get("unexpected", 0)
+                or verification.get("geometryMismatched", 0)
+            ):
                 failures.append(
                     _entry(
                         "verification_mismatch",

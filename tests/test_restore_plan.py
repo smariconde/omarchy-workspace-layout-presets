@@ -41,10 +41,11 @@ class SystemReplayExecutorTests(unittest.TestCase):
 
         elapsed = [0.0]
         reader = Reader()
+        commands = []
         executor = SystemReplayExecutor(
             target_workspace_id=4,
             reader=reader,
-            runner=lambda *args, **kwargs: SimpleNamespace(returncode=0),
+            runner=lambda argv, **kwargs: commands.append(argv) or SimpleNamespace(returncode=0),
             clock=lambda: elapsed[0],
             sleeper=lambda seconds: elapsed.__setitem__(0, elapsed[0] + seconds),
             timeout=1,
@@ -54,7 +55,46 @@ class SystemReplayExecutorTests(unittest.TestCase):
         executor.launch(["omarchy-launch-webapp", "https://example.invalid"])
 
         self.assertTrue(executor.wait_for_window("window-2", "Brave-browser", "tiled"))
+        executor.focus_window("window-2", "Brave-browser")
         self.assertEqual(reader.reads, 3)
+        self.assertEqual(
+            commands[-1],
+            ["hyprctl", "dispatch", 'hl.dsp.focus({ window = "address:0x2" })'],
+        )
+
+    def test_verification_detects_a_restored_tree_with_swapped_sides(self) -> None:
+        correct_clients = [
+            {"address": "0xa", "class": "YouTube", "floating": False, "workspace": {"id": 4}, "at": [10, 10], "size": [574, 980]},
+            {"address": "0xb", "class": "X", "floating": False, "workspace": {"id": 4}, "at": [594, 10], "size": [396, 980]},
+        ]
+
+        class Reader:
+            def __init__(self, clients):
+                self.clients = clients
+
+            def read_json(self, subject: str):
+                return self.clients
+
+        plan = {
+            "layoutMode": "tree",
+            "target": {"workspace": {"id": 4}},
+            "entries": [
+                {"kind": "launch", "windowId": "youtube", "wmClass": "YouTube", "placement": "tiled"},
+                {"kind": "launch", "windowId": "x", "wmClass": "X", "placement": "tiled"},
+            ],
+            "steps": [
+                {"op": "anchor", "windowId": "youtube"},
+                {"op": "split", "focus": "youtube", "direction": "right", "new": "x", "ratio": 0.4},
+            ],
+        }
+        executor = SystemReplayExecutor(target_workspace_id=4, reader=Reader(correct_clients))
+        executor._window_addresses = {"youtube": "0xa", "x": "0xb"}
+
+        self.assertEqual(executor.verify(plan)["geometryMismatched"], 0)
+
+        swapped = [dict(correct_clients[0], at=[594, 10], size=[396, 980]), dict(correct_clients[1], at=[10, 10], size=[574, 980])]
+        executor._reader = Reader(swapped)
+        self.assertEqual(executor.verify(plan)["geometryMismatched"], 2)
 
 
 def node(identifier: str, wm_class: str, desktop_id: str | None, ordinal: int = 1) -> dict[str, object]:
@@ -127,20 +167,12 @@ class BuildPlanTests(unittest.TestCase):
             actions,
             [
                 {"op": "launch", "windowId": "window-1", "placement": "tiled", "wmClass": "Code", "argv": ["code", "--safe"]},
-                {
-                    "op": "dispatch",
-                    "argv": [
-                        "hyprctl",
-                        "dispatch",
-                        'hl.dsp.focus({ window = "class:^Code$" })',
-                    ],
-                    "windowId": "window-1",
-                },
+                {"op": "focus", "windowId": "window-1", "wmClass": "Code"},
                 {"op": "dispatch", "argv": ["hyprctl", "dispatch", 'hl.dsp.layout("preselect r")']},
                 {"op": "launch", "windowId": "window-2", "placement": "tiled", "wmClass": "kitty", "argv": ["kitty", "--safe"]},
                 {
                     "op": "dispatch",
-                    "argv": ["hyprctl", "dispatch", 'hl.dsp.layout("splitratio 0.59999999999999998 exact")'],
+                    "argv": ["hyprctl", "dispatch", 'hl.dsp.layout("splitratio 0.80000000000000004 exact")'],
                     "windowId": "window-2",
                 },
                 {"op": "launch", "windowId": "window-3", "placement": "floating", "wmClass": "Pavucontrol", "argv": ["pavucontrol", "--safe"]},
@@ -164,6 +196,50 @@ class BuildPlanTests(unittest.TestCase):
         for action in actions:
             if action["op"] == "launch":
                 self.assertNotIn("shell", action["argv"])
+
+    def test_replay_converts_the_nested_ratios_from_the_reported_layout(self) -> None:
+        profile = copy.deepcopy(PROFILE)
+        profile["floating"] = []
+        profile["tiled"] = {
+            "anchor": "window-1",
+            "nodes": [
+                node("window-1", "Brave-browser", "YouTube", 1),
+                node("window-2", "com.mitchellh.ghostty", "com.mitchellh.ghostty"),
+                node("window-3", "Brave-browser", "X", 2),
+            ],
+            "splits": [
+                {
+                    "focus": "window-1",
+                    "direction": "right",
+                    "new": "window-3",
+                    "ratio": 0.41244725738396626,
+                },
+                {
+                    "focus": "window-1",
+                    "direction": "down",
+                    "new": "window-2",
+                    "ratio": 0.4669902912621359,
+                },
+            ],
+        }
+        actions = build_replay_actions(
+            profile,
+            plan_for(profile).data,
+            launcher_resolver=lambda desktop_id: [desktop_id],
+        )
+
+        ratio_dispatches = [
+            action["argv"][2]
+            for action in actions
+            if action["op"] == "dispatch" and "splitratio" in action["argv"][2]
+        ]
+        self.assertEqual(
+            ratio_dispatches,
+            [
+                'hl.dsp.layout("splitratio 1.1751054852320675 exact")',
+                'hl.dsp.layout("splitratio 1.066019417475728 exact")',
+            ],
+        )
 
     def test_compatibility_guard_requires_the_tested_version_and_verified_lua_bridge(self) -> None:
         self.assertEqual(parse_hyprland_version("Hyprland v0.56.1 built from abc"), (0, 56, 1))
@@ -390,6 +466,9 @@ class PlanProfileTests(unittest.TestCase):
 
             def focus_target(self) -> None:
                 self.operations.append(("focus_target", None))
+
+            def focus_window(self, window_id: str, wm_class: str) -> None:
+                self.operations.append(("focus_window", (window_id, wm_class)))
 
             def wait_for_window(self, window_id: str, wm_class: str, placement: str) -> bool:
                 self.operations.append(("wait", (window_id, wm_class, placement)))

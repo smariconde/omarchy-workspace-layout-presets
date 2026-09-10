@@ -218,18 +218,26 @@ La versión por sí sola no prueba que los dispatches estén disponibles; si fal
 esa evidencia, la respuesta es `blocked` con `dispatch_unverified` y no se
 consume ni ejecuta el plan.
 
-`build_replay_actions` compila un plan validado en acciones explícitas antes
-de cualquier I/O: cada lanzamiento es un `argv` proveniente de un `.desktop` y
-cada dispatch es un array con tres elementos: `hyprctl`, `dispatch` y la
-expresión Lua.
+`build_replay_actions` compila un plan validado en acciones tipadas antes de
+cualquier I/O: cada lanzamiento es un `argv` proveniente de un `.desktop`, los
+dispatches estáticos son arrays de tres elementos y el focus de un nodo es una
+acción propia. El executor asocia cada `windowId` con la dirección nueva que
+observa después de lanzarlo y recién entonces construye el selector Lua
+`address:0x…`; nunca enfoca por clase cuando puede haber instancias repetidas.
 Los códigos de campo `%f`, `%F`, `%u` y `%U` se omiten al restaurar porque el
 plugin no proporciona archivos ni URLs; cualquier otro código no resoluble
 bloquea la compilación con un error JSON y nunca expone un traceback en la UI.
-La compilación escapa las cadenas Lua y nunca produce shell source. El executor
+Los ratios del perfil expresan la fracción ocupada por el lado nuevo. Antes de
+`splitratio … exact`, se convierten a la escala Dwindle donde `1.0` representa
+50/50 y, con el `split_bias = 0` predeterminado de Omarchy, el valor se aplica
+al lado superior/izquierdo. La compilación escapa las cadenas Lua y nunca
+produce shell source. El executor
 consume estas acciones sólo después de revalidar el token, el perfil y el
 workspace; una acción fallida se reporta como resultado parcial y no provoca
 rollback destructivo. Antes de cada acción vuelve a enfocar el workspace
-objetivo y espera la ventana lanzada mediante consultas JSON de clientes.
+objetivo y espera la ventana lanzada mediante consultas JSON de clientes. La
+verificación reconstruye los rectángulos tiled normalizados y marca como
+parcial un resultado con lados, proporciones o identidades diferentes.
 
 `atomic_json.py` concentra la escritura privada (`0600`) y atómica que usan
 tanto `profile_store` como `plan_store`; cada almacén conserva sus rutas, su
