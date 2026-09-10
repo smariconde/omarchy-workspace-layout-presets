@@ -59,7 +59,8 @@ class UserInterfaceLanguageTests(unittest.TestCase):
     def test_profile_details_hide_implementation_metadata(self) -> None:
         source = (Path(__file__).resolve().parent.parent / "Panel.qml").read_text(encoding="utf-8")
 
-        self.assertIn('text: root.selectedProfileData ? "Apps in this preset" : ""', source)
+        self.assertNotIn('"Apps in this preset"', source)
+        self.assertLess(source.index("id: detailsSurface"), source.index('text: "Restore…"'))
         self.assertNotIn('root.selectedProfileData.layoutConfidence', source)
         self.assertNotIn('root.selectedProfileData.source.workspace.name', source)
         self.assertNotIn('root.selectedProfileData.source.monitor.connector', source)
@@ -111,14 +112,14 @@ class UserInterfaceLanguageTests(unittest.TestCase):
     def test_successful_delete_clears_the_removed_selection(self) -> None:
         source = (Path(__file__).resolve().parent.parent / "Panel.qml").read_text(encoding="utf-8")
         delete_success = source.index('if (operation === "profile-delete")')
-        refresh = source.index("root.refresh()", delete_success)
+        refresh = source.index("root.refresh(true)", delete_success)
         self.assertLess(delete_success, refresh)
         self.assertIn("root.clearSelection()", source[delete_success:refresh])
 
     def test_each_panel_instance_refreshes_and_reconciles_when_opened(self) -> None:
         source = (Path(__file__).resolve().parent.parent / "Panel.qml").read_text(encoding="utf-8")
-        self.assertIn("onOpenedChanged: if (opened) refresh()", source)
-        self.assertIn("profiles.indexOf(root.selectedProfile) < 0", source)
+        self.assertIn("onOpenedChanged: if (opened) refresh(false)", source)
+        self.assertIn("listed.indexOf(root.selectedProfile) < 0", source)
         self.assertLess(source.index("function clearSelection()"), source.index("function choose(profileId)"))
 
     def test_panel_size_is_content_driven_and_scrolls_when_needed(self) -> None:
@@ -127,6 +128,56 @@ class UserInterfaceLanguageTests(unittest.TestCase):
         self.assertIn("fittedContentHeight(contentColumn.implicitHeight", source)
         self.assertIn("contentHeight: contentColumn.implicitHeight", source)
         self.assertIn("interactive: contentHeight > height", source)
+
+    def test_ui_surfaces_use_adaptive_content_heights(self) -> None:
+        root = Path(__file__).resolve().parent.parent
+        panel = (root / "Panel.qml").read_text(encoding="utf-8")
+        preview = (root / "qml" / "RestorePreview.qml").read_text(encoding="utf-8")
+
+        self.assertIn("readonly property int visibleProfileRows: Math.min(5, profiles.length)", panel)
+        self.assertIn("implicitHeight: reviewColumn.implicitHeight", panel)
+        self.assertIn("implicitHeight: detailsColumn.implicitHeight", panel)
+        self.assertIn("implicitHeight: previewColumn.implicitHeight", preview)
+        self.assertNotIn("Style.space(116)", panel + preview)
+        self.assertNotIn("Style.space(122)", panel + preview)
+
+    def test_panel_keyboard_focus_and_actions_are_explicit(self) -> None:
+        root = Path(__file__).resolve().parent.parent
+        panel = (root / "Panel.qml").read_text(encoding="utf-8")
+        preview = (root / "qml" / "RestorePreview.qml").read_text(encoding="utf-8")
+
+        self.assertIn("focusTarget: captureName.enabled ? captureName : panelFocusScope", panel)
+        self.assertIn("Keys.onEscapePressed: popup.close()", panel)
+        self.assertGreaterEqual((panel + preview).count("focusable: true"), 9)
+        self.assertIn('text: "Cancel"', panel)
+
+    def test_dynamic_ui_text_is_plain_and_long_ids_are_bounded(self) -> None:
+        root = Path(__file__).resolve().parent.parent
+        panel = (root / "Panel.qml").read_text(encoding="utf-8")
+        preview = (root / "qml" / "RestorePreview.qml").read_text(encoding="utf-8")
+
+        self.assertIn("tooltipText: modelData", panel)
+        self.assertIn("text: modelData; textFormat: Text.PlainText", panel)
+        self.assertIn("elide: Text.ElideRight", panel)
+        self.assertIn("textFormat: Text.PlainText", preview)
+        self.assertIn("previewTitle.truncated", preview)
+
+    def test_feedback_uses_semantic_state_and_survives_refresh(self) -> None:
+        source = (Path(__file__).resolve().parent.parent / "Panel.qml").read_text(encoding="utf-8")
+
+        self.assertIn('property string statusKind: "neutral"', source)
+        self.assertIn('root.setStatus("success", "Preset saved.")', source)
+        self.assertIn("root.refresh(true)", source)
+        self.assertNotIn('statusText.indexOf("Couldn\'t")', source)
+        self.assertNotIn('statusText.indexOf("must be")', source)
+
+    def test_lists_are_padded_and_scroll_after_their_visible_limits(self) -> None:
+        source = (Path(__file__).resolve().parent.parent / "Panel.qml").read_text(encoding="utf-8")
+
+        self.assertIn("padding: Style.spacing.md", source)
+        self.assertIn("readonly property int visibleProfileRows: Math.min(5, profiles.length)", source)
+        self.assertIn("readonly property int visibleDetailRows: Math.min(5, selectedProfileDetails.length)", source)
+        self.assertGreaterEqual(source.count("ScrollBar.vertical: ScrollBar"), 3)
 
     def test_ambiguous_webapps_use_the_omarchy_dropdown_and_explicit_commit(self) -> None:
         root = Path(__file__).resolve().parent.parent
