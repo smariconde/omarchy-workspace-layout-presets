@@ -2,13 +2,16 @@ import QtQuick
 import qs.Ui
 
 // Omarchy bar-widget contract: the root inherits BarWidget and the visible
-// affordance is a WidgetButton. The panel is hosted by KeyboardPanel so it is
+// affordance is a BarIconButton. The panel is hosted by KeyboardPanel so it is
 // positioned and focused like every other Omarchy shell popup.
 BarWidget {
     id: root
     moduleName: "santiago.workspace-layout-presets"
 
     readonly property bool opened: panelLoader.item ? panelLoader.item.opened === true : false
+    // Keep the host bar's open-panel mark aligned with the glyph's optically
+    // centered painted bounds instead of sizing it from the whole slot.
+    readonly property real openPanelIndicatorWidth: button.glyphPaintedWidth
 
     function open() { if (panelLoader.item) panelLoader.item.open() }
     function close() { if (panelLoader.item) panelLoader.item.close() }
@@ -41,12 +44,12 @@ BarWidget {
         }
     }
 
-    WidgetButton {
+    BarIconButton {
         id: button
         anchors.fill: parent
         bar: root.bar
-        text: "\uf00a"
-        fontFamily: "omarchy"
+        // Nerd Fonts' view-dashboard mark reads as an asymmetric tiled layout.
+        text: "\udb81\udd6e"
         tooltipText: "Workspace layouts"
         onPressed: function(buttonCode) {
             if (buttonCode === Qt.LeftButton) root.togglePanel()

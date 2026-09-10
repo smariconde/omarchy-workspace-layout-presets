@@ -3,6 +3,14 @@ import unittest
 
 
 class UserInterfaceLanguageTests(unittest.TestCase):
+    def test_bar_uses_the_theme_icon_font_and_optical_indicator_width(self) -> None:
+        source = (Path(__file__).resolve().parent.parent / "BarWidget.qml").read_text(encoding="utf-8")
+
+        self.assertIn("BarIconButton {", source)
+        self.assertIn('text: "\\udb81\\udd6e"', source)
+        self.assertIn("openPanelIndicatorWidth: button.glyphPaintedWidth", source)
+        self.assertNotIn('fontFamily: "omarchy"', source)
+
     def test_plugin_qml_has_no_known_spanish_user_facing_labels(self) -> None:
         root = Path(__file__).resolve().parent.parent
         qml_files = [root / "Panel.qml", root / "BarWidget.qml", *sorted((root / "qml").glob("*.qml"))]
