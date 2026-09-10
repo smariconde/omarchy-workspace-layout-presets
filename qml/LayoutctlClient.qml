@@ -36,7 +36,10 @@ Item {
     }
 
     function showProfile(profileId) { return run("profile-show", ["profile", "show", profileId]) }
-    function capture(name) { return run("capture", ["capture", name]) }
+    function capture(name) { return run("capture-prepare", ["capture", "prepare", name]) }
+    function commitCapture(captureId, assignments) {
+        return run("capture-commit", ["capture", "commit", captureId, JSON.stringify(assignments)])
+    }
     function plan(profileId) { return run("plan", ["plan", profileId]) }
     function restore(planId) {
         if (running || typeof planId !== "string" || planId.length === 0) return false

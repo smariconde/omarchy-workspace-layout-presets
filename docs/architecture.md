@@ -12,6 +12,8 @@
 ├── backend/
 │   ├── layoutctl.py          # Typed JSON CLI boundary called with argv arrays
 │   ├── capture.py            # hyprctl JSON capture and profile construction
+│   ├── capture_review.py     # ambiguous browser/webapp review and commit
+│   ├── capture_store.py      # private five-minute capture-review tokens
 │   ├── infer_dwindle.py      # Rectangle-to-binary-tree inference
 │   ├── launchers.py          # Desktop-entry-only launch resolution
 │   ├── restore.py            # Plan, guarded replay, verification
@@ -41,7 +43,8 @@ from a profile.
 `layoutctl` exposes these JSON-only command families used by the V1 menu:
 
 ```text
-capture <name>
+capture prepare <name>
+capture commit <capture-id> <assignments-json>
 plan <profile-id>
 restore <approved-plan-id>
 profile list|show|rename|duplicate|delete --confirm|export|import
@@ -50,6 +53,16 @@ profile list|show|rename|duplicate|delete --confirm|export|import
 The restore command is deliberately separate from planning so the UI can show
 launch, skip, warning, and blocked entries before a state-changing action.
 
+`capture prepare` saves immediately when every launcher is unambiguous. When a
+Chromium-family browser window may represent an Omarchy webapp, it instead
+returns a short-lived opaque capture ID, transient display-only window titles,
+and safe `.desktop` choices. `capture commit` accepts one bounded JSON object
+mapping those node IDs to an offered desktop ID or `null`. The private draft
+contains neither titles nor URLs, and only `profile_store.py` writes the final
+profile. The QML boundary still passes an executable and separate arguments;
+the assignment JSON is parsed strictly as data and never becomes executable
+input.
+
 ## Contrato CLI v1 (M0)
 
 La UI invoca exclusivamente un ejecutable fijo y un array de argumentos. No
@@ -57,7 +70,8 @@ compone una línea de shell, y el contenido de un perfil nunca se convierte en
 argumentos nuevos ni en código. La gramática pública es:
 
 ```text
-layoutctl capture <name>
+layoutctl capture prepare <name>
+layoutctl capture commit <capture-id> <assignments-json>
 layoutctl plan <profile-id>
 layoutctl restore <approved-plan-id>
 layoutctl profile list
@@ -138,6 +152,15 @@ presentes en `hyprctl`. El descriptor de lanzamiento se resuelve únicamente a
 un identificador de un `.desktop` de tipo `Application` con `Exec`; `Exec`
 nunca se guarda ni se ejecuta en esta etapa. La falta de un descriptor y las
 instancias repetidas son advertencias explícitas.
+
+`capture_review.py` superpone la única excepción interactiva: si una clase de
+navegador compatible también puede corresponder a una webapp instalada,
+convierte ese nodo en `unresolved` hasta que la persona elija. El título se
+devuelve únicamente para presentar una pista con texto plano. `capture_store.py`
+conserva durante cinco minutos el perfil saneado y la lista exacta de IDs
+ofrecidos, con permisos privados; nunca recibe el título, `Exec` ni una URL.
+El commit valida todas las elecciones contra esa lista antes de pedir a
+`profile_store.py` la escritura atómica.
 
 La inferencia M3 trabaja sólo con geometría tiled y no lee ni persiste campos
 adicionales de Hyprland. Acepta particiones binarias *slicing*: cada corte

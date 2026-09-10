@@ -23,7 +23,7 @@ contrato, registrarla primero en la arquitectura; no esconderla en código.
 | Manifiesto y puntos de entrada | Hecho | `manifest.json`, QML inerte |
 | Almacenamiento de perfiles | Hecho | esquema V1 profundo, operaciones atómicas y sin sobrescritura |
 | CLI | Hecho para perfiles | list/show/rename/duplicate/delete/export/import con JSON estable |
-| Captura y lanzadores | Hecho | fixtures anonimizadas, adaptador `hyprctl` de sólo lectura y resolución `.desktop` |
+| Captura y lanzadores | Hecho | fixtures anonimizadas, resolución `.desktop` y revisión segura de webapps ambiguas |
 | Inferencia Dwindle | Hecho | inferencia pura de particiones slicing y fallback explícito |
 | Planificación | Hecho | `plan` de sólo lectura, bloqueos explícitos y token de un solo uso |
 | Restauración | En curso | revalidación, atestación efímera, executor argv y verificación conectados; falta la prueba end-to-end del replay |
@@ -103,10 +103,12 @@ y están cubiertas por pruebas de almacenamiento y CLI.
   colisión de ID de perfil.
 
 **Cierre:** fixtures de Hyprland generan un perfil validado, atómico y sin
-datos sensibles; `layoutctl capture <name>` mantiene el sobre JSON.
+datos sensibles; `layoutctl capture prepare|commit` mantiene el sobre JSON.
 
-**Evidencia:** `backend/capture.py`, `backend/launchers.py`,
-`tests/test_capture.py`, `tests/test_launchers.py`.
+**Evidencia:** `backend/capture.py`, `backend/capture_review.py`,
+`backend/capture_store.py`, `backend/launchers.py`, `tests/test_capture.py`,
+`tests/test_capture_review.py`, `tests/test_capture_store.py` y
+`tests/test_launchers.py`.
 
 ### M3 — Inferencia Dwindle — Hecho
 
@@ -185,6 +187,9 @@ habilitar el replay. La interfaz no depende de evidencia creada manualmente.
 Los launchers `.desktop` que usan `%f`, `%F`, `%u` o `%U` se ejecutan sin esos
 argumentos cuando el preset no aporta archivos ni URLs; un error de compilación
 queda contenido en el contrato JSON.
+La espera posterior a cada lanzamiento toma una instantánea de las direcciones
+del workspace y sólo acepta una ventana nueva, evitando que dos webapps con la
+misma clase `Brave-browser` satisfagan accidentalmente la misma espera.
 Queda pendiente la prueba end-to-end del replay controlado.
 
 ### M6 — Interfaz V1 — Hecho
@@ -205,6 +210,13 @@ siguiente ciclo de eventos para que Save y Delete puedan refrescar la lista
 sin ser rechazados por el estado transitorio `running` de Quickshell. Además,
 cada instancia vuelve a listar perfiles al abrirse para reflejar cambios
 hechos desde otro workspace.
+
+Las ventanas de Brave/Chromium que pueden ser una webapp abren una revisión
+inline con `Ui.SearchableDropdown`: el título se usa sólo como pista transitoria, la
+persona confirma un `.desktop` instalado o elige no restaurar esa ventana, y
+el perfil guarda únicamente ese ID. Los nombres Omarchy con espacios son
+válidos sin permitir traversal. Las capturas inequívocas conservan el guardado
+directo sin un paso adicional.
 
 **Nota de validación:** `omarchy plugin validate .` pasa en este entorno;
 `qmllint` no está instalado y las pruebas QML con Wayland quedan para la matriz

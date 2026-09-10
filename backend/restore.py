@@ -77,6 +77,23 @@ class SystemReplayExecutor:
         self._sleeper = sleeper
         self._timeout = timeout
         self._poll_interval = poll_interval
+        self._addresses_before_launch: set[str] = set()
+
+    def _target_addresses(self) -> set[str]:
+        try:
+            clients = self._reader.read_json("clients")
+        except (OSError, CaptureError) as error:
+            raise ReplayError("could not snapshot target windows before launch") from error
+        if not isinstance(clients, list):
+            return set()
+        return {
+            client["address"]
+            for client in clients
+            if isinstance(client, Mapping)
+            and isinstance(client.get("address"), str)
+            and isinstance(client.get("workspace"), Mapping)
+            and client["workspace"].get("id") == self._target_workspace_id
+        }
 
     def _run(self, argv: list[str]) -> None:
         if not argv or not all(isinstance(argument, str) and argument for argument in argv):
@@ -96,6 +113,10 @@ class SystemReplayExecutor:
             raise ReplayError(f"command returned exit code {completed.returncode}: {argv[0]!r}")
 
     def launch(self, argv: list[str]) -> None:
+        # Browser-hosted webapps can all have the same WM class. Snapshot the
+        # target workspace so wait_for_window observes the window created by
+        # this launch instead of accepting an older matching instance.
+        self._addresses_before_launch = self._target_addresses()
         self._run(argv)
 
     def dispatch(self, argv: list[str]) -> None:
@@ -115,15 +136,19 @@ class SystemReplayExecutor:
         deadline = self._clock() + self._timeout
         while self._clock() <= deadline:
             clients = self._reader.read_json("clients")
-            if isinstance(clients, list) and any(
-                isinstance(client, Mapping)
-                and isinstance(client.get("class"), str)
-                and client["class"].casefold() == wm_class.casefold()
-                and isinstance(client.get("workspace"), Mapping)
-                and client["workspace"].get("id") == self._target_workspace_id
-                for client in clients
-            ):
-                return True
+            if isinstance(clients, list):
+                for client in clients:
+                    if (
+                        isinstance(client, Mapping)
+                        and isinstance(client.get("address"), str)
+                        and client["address"] not in self._addresses_before_launch
+                        and isinstance(client.get("class"), str)
+                        and client["class"].casefold() == wm_class.casefold()
+                        and isinstance(client.get("workspace"), Mapping)
+                        and client["workspace"].get("id") == self._target_workspace_id
+                    ):
+                        self._addresses_before_launch.add(client["address"])
+                        return True
             self._sleeper(self._poll_interval)
         return False
 

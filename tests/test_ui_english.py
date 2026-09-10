@@ -72,3 +72,14 @@ class UserInterfaceLanguageTests(unittest.TestCase):
         self.assertIn("fittedContentHeight(contentColumn.implicitHeight", source)
         self.assertIn("contentHeight: contentColumn.implicitHeight", source)
         self.assertIn("interactive: contentHeight > height", source)
+
+    def test_ambiguous_webapps_use_the_omarchy_dropdown_and_explicit_commit(self) -> None:
+        root = Path(__file__).resolve().parent.parent
+        panel = (root / "Panel.qml").read_text(encoding="utf-8")
+        client = (root / "qml" / "LayoutctlClient.qml").read_text(encoding="utf-8")
+
+        self.assertIn("Ui.SearchableDropdown", panel)
+        self.assertIn('text: "Identify browser windows"', panel)
+        self.assertIn('text: "Save preset"', panel)
+        self.assertIn('["capture", "prepare", name]', client)
+        self.assertIn('["capture", "commit", captureId, JSON.stringify(assignments)]', client)

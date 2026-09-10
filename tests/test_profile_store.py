@@ -144,6 +144,27 @@ class ProfileStoreTests(unittest.TestCase):
         write_profile("coding", profile, self.environment)
         self.assertEqual(read_profile("coding", self.environment), profile)
 
+    def test_profile_accepts_omarchy_webapp_desktop_ids_with_spaces(self) -> None:
+        profile = valid_profile()
+        window = valid_window("docs")
+        window["app"]["desktopId"] = "Google Docs"
+        window["launch"]["desktopId"] = "Google Docs"
+        profile["tiled"] = {"anchor": "docs", "nodes": [window], "splits": []}
+
+        write_profile("web", profile, self.environment)
+
+        self.assertEqual(read_profile("web", self.environment)["tiled"]["nodes"][0]["launch"]["desktopId"], "Google Docs")
+
+    def test_profile_rejects_desktop_id_path_traversal(self) -> None:
+        for desktop_id in ("../YouTube", "folder/YouTube", "folder\\YouTube", " YouTube", "YouTube "):
+            profile = valid_profile()
+            window = valid_window("web")
+            window["app"]["desktopId"] = desktop_id
+            window["launch"]["desktopId"] = desktop_id
+            profile["tiled"] = {"anchor": "web", "nodes": [window], "splits": []}
+            with self.subTest(desktop_id=desktop_id), self.assertRaises(ProfileError):
+                write_profile("web", profile, self.environment)
+
     def test_rename_changes_only_the_display_name(self) -> None:
         original = valid_profile()
         write_profile("coding", original, self.environment)

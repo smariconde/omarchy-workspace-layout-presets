@@ -25,7 +25,6 @@ SCHEMA_VERSION = 1
 MAX_PROFILE_BYTES = 1_048_576
 _PROFILE_ID_PATTERN = re.compile(r"[a-z0-9][a-z0-9-]{0,63}")
 _NODE_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}")
-_DESKTOP_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}")
 _VALID_CONFIDENCE = {"exact", "fallback"}
 _VALID_DIRECTIONS = {"left", "right", "up", "down"}
 
@@ -104,7 +103,13 @@ def _require_number(value: Any, label: str, minimum: float, maximum: float, *, e
 
 def _validate_desktop_id(value: Any, label: str) -> str:
     result = _require_string(value, label, 128)
-    if not _DESKTOP_ID_PATTERN.fullmatch(result):
+    if (
+        result in {".", ".."}
+        or result != result.strip()
+        or "/" in result
+        or "\\" in result
+        or any(ord(character) < 32 or ord(character) == 127 for character in result)
+    ):
         raise ProfileError(f"{label} contains unsupported characters")
     return result
 

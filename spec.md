@@ -51,7 +51,10 @@ panel; it does not need an entry in the general Omarchy Trigger menu.
 1. The user switches to a workspace and arranges its windows.
 2. They click the status-bar icon and choose **Save current workspace**.
 3. The panel asks for a profile name and shows validation warnings, if any.
-4. The plugin writes a versioned profile and confirms the number of tiled,
+4. If a browser window could be either the browser or an installed Omarchy
+   webapp, the panel shows its transient title and asks the user to choose the
+   launcher. An unambiguous workspace needs no extra confirmation.
+5. The plugin writes a versioned profile and confirms the number of tiled,
    floating, and unresolved windows.
 
 **Restore a preset**
@@ -110,6 +113,12 @@ tabs, environment variables, terminal history, or document paths in a saved
 profile. They are transient, may contain secrets, and are not needed for a
 layout preset.
 
+Omarchy webapps commonly share the default browser's window class. Capture may
+use a window title transiently to suggest an installed webapp, but must require
+user review before assigning it and must never write that title to a profile or
+capture draft. Capture drafts are private, expire after five minutes, and store
+only profile-safe data plus the bounded desktop IDs offered for each node.
+
 ### FR-3 — Dwindle tree inference
 
 For up to 10 tiled windows, infer a binary Dwindle tree from their rectangles.
@@ -141,10 +150,14 @@ process command line.
 Launch resolution order:
 
 1. a valid desktop entry whose `StartupWMClass` or app ID matches the window;
-2. a user-reviewed launch descriptor stored as an argument array;
+2. a user-reviewed installed `.desktop` ID for ambiguous browser/webapp windows;
 3. unresolved — restoration skips the entry and reports it clearly.
 
 An unresolved window never causes a restore to fail destructively.
+Desktop IDs may contain spaces because Omarchy names webapp files from their
+display names, but they must remain a single non-traversing filename component.
+Profiles store only that ID; restore rereads the installed desktop entry and
+constructs argv without invoking a shell.
 
 ### FR-6 — Preview and restore
 
@@ -227,7 +240,7 @@ identity cannot be guaranteed after a reboot without app-specific support.
 BarWidget.qml
   └─ Panel.qml                 UI, accessibility, confirmations, notifications
        └─ layoutctl             one small, typed backend command
-            ├─ capture          reads Hyprland JSON and writes validated profile JSON
+            ├─ capture          prepares/commits safe capture and webapp review
             ├─ plan             produces a JSON-only preview; changes nothing
             ├─ restore          executes an approved plan and returns structured results
             └─ profile          list/show/rename/duplicate/delete/export/import

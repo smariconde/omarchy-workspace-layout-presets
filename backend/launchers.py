@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import configparser
 import os
-import re
 import shlex
 from pathlib import Path
 from typing import Any, Iterable, Mapping
@@ -19,11 +18,29 @@ class LauncherError(ValueError):
     """Raised when a desktop entry cannot become a safe argv launch."""
 
 
-_DESKTOP_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}")
 _SHELL_EXECUTABLES = {"ash", "bash", "csh", "dash", "fish", "ksh", "sh", "tcsh", "zsh"}
 _EMPTY_ARGUMENT_FIELD_CODES = {"%f", "%F", "%u", "%U"}
 _WEBAPP_EXECUTABLE = "omarchy-launch-webapp"
 _WEBAPP_HANDLER_PREFIX = "omarchy-webapp-handler-"
+_BROWSER_CLASS_PARTS = ("brave", "chromium", "chrome", "edge", "opera", "vivaldi", "helium")
+
+
+def valid_desktop_id(desktop_id: object) -> bool:
+    """Return whether an XDG desktop filename stem is safe as one path component.
+
+    Omarchy intentionally uses the webapp's display name as its filename, so
+    spaces must be accepted. Slashes, controls and dot components remain
+    forbidden and the final path is checked again when it is resolved.
+    """
+    return (
+        isinstance(desktop_id, str)
+        and 0 < len(desktop_id) <= 128
+        and desktop_id not in {".", ".."}
+        and desktop_id == desktop_id.strip()
+        and "/" not in desktop_id
+        and "\\" not in desktop_id
+        and not any(ord(character) < 32 or ord(character) == 127 for character in desktop_id)
+    )
 
 
 def application_directories(environment: Mapping[str, str] | None = None) -> list[Path]:
@@ -49,7 +66,7 @@ def _desktop_id(path: Path, directory: Path) -> str | None:
     if len(relative.parts) != 1 or path.suffix != ".desktop":
         return None
     candidate = path.stem
-    if not candidate or any(character.isspace() for character in candidate):
+    if not valid_desktop_id(candidate):
         return None
     return candidate
 
@@ -107,7 +124,7 @@ def resolve_desktop_id(
 
 
 def _desktop_entry_path(desktop_id: str, directories: Iterable[Path]) -> Path | None:
-    if not isinstance(desktop_id, str) or not _DESKTOP_ID_PATTERN.fullmatch(desktop_id):
+    if not valid_desktop_id(desktop_id):
         raise LauncherError("desktop id contains unsupported characters")
     for directory in directories:
         candidate = directory / f"{desktop_id}.desktop"
@@ -117,6 +134,38 @@ def _desktop_entry_path(desktop_id: str, directories: Iterable[Path]) -> Path | 
         except OSError:
             continue
     return None
+
+
+def is_webapp_capable_browser_class(window_class: str) -> bool:
+    """Identify browser classes used by Omarchy's Chromium webapp launcher."""
+    folded = window_class.casefold() if isinstance(window_class, str) else ""
+    return any(part in folded for part in _BROWSER_CLASS_PARTS)
+
+
+def list_webapp_entries(
+    *,
+    directories: Iterable[Path] | None = None,
+    environment: Mapping[str, str] | None = None,
+) -> list[dict[str, str]]:
+    """List installed Omarchy webapps without exposing Exec values or URLs."""
+    search_directories = list(application_directories(environment) if directories is None else directories)
+    results: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for directory in search_directories:
+        try:
+            paths = sorted(directory.glob("*.desktop"))
+        except OSError:
+            continue
+        for path in paths:
+            desktop_id = _desktop_id(path, directory)
+            if desktop_id is None or desktop_id.casefold() in seen:
+                continue
+            seen.add(desktop_id.casefold())
+            metadata = desktop_entry_metadata(desktop_id, directories=[directory], environment=environment)
+            if metadata is None or metadata["kind"] != "webapp":
+                continue
+            results.append({"desktopId": desktop_id, "displayName": metadata["displayName"] or desktop_id})
+    return sorted(results, key=lambda item: (item["displayName"].casefold(), item["desktopId"].casefold()))
 
 
 def _localized_value(entry: Mapping[str, str], key: str, environment: Mapping[str, str] | None) -> str | None:

@@ -107,14 +107,40 @@ class LayoutctlContractTests(unittest.TestCase):
 
     def test_capture_returns_a_profile_and_its_read_only_warnings(self) -> None:
         profile = {"schemaVersion": 1, "name": "Coding", "warnings": [{"code": "layout_fallback", "message": "pending"}]}
+        data = {"saved": True, "profileId": "coding", "profile": profile, "review": []}
 
         exit_code, response = layoutctl.execute(
-            ["capture", "Coding"], capture_workspace=lambda name: ("coding", profile)
+            ["capture", "prepare", "Coding"], capture_preparer=lambda name: (data, profile["warnings"])
         )
 
         self.assertEqual(exit_code, layoutctl.EXIT_OK)
-        self.assertEqual(response["data"], {"profileId": "coding", "profile": profile})
+        self.assertEqual(response["data"], data)
         self.assertEqual(response["warnings"], profile["warnings"])
+
+    def test_capture_commit_passes_only_structured_assignment_data(self) -> None:
+        profile = {"schemaVersion": 1, "name": "Web", "warnings": []}
+        assignments = '{"window-1":"YouTube"}'
+
+        exit_code, response = layoutctl.execute(
+            ["capture", "commit", "0" * 32, assignments],
+            capture_committer=lambda capture_id, value: ("web", profile),
+        )
+
+        self.assertEqual(exit_code, layoutctl.EXIT_OK)
+        self.assertTrue(response["data"]["saved"])
+        self.assertEqual(response["data"]["profileId"], "web")
+
+    def test_capture_commit_conflict_is_a_non_destructive_block(self) -> None:
+        def conflict(capture_id: str, assignments: str):
+            raise layoutctl.ProfileAlreadyExistsError("profile already exists")
+
+        exit_code, response = layoutctl.execute(
+            ["capture", "commit", "0" * 32, "{}"], capture_committer=conflict
+        )
+
+        self.assertEqual(exit_code, layoutctl.EXIT_ERROR)
+        self.assertEqual(response["status"], "blocked")
+        self.assertEqual(response["blocked"][0]["code"], "already_exists")
 
     def test_profile_management_commands_return_json_data(self) -> None:
         profile = {"schemaVersion": 1, "name": "Coding", "tiled": {"nodes": []}, "floating": []}
@@ -227,6 +253,10 @@ class LayoutctlContractTests(unittest.TestCase):
         self.assertEqual(parsed.profile_action, "duplicate")
         self.assertEqual(parsed.profile_id, "coding")
         self.assertEqual(parsed.new_profile_id, "coding-copy")
+
+        capture = layoutctl.parse_arguments(["capture", "prepare", "Web apps"])
+        self.assertEqual(capture.capture_action, "prepare")
+        self.assertEqual(capture.name, "Web apps")
 
     def test_parser_requires_an_explicit_delete_confirmation_flag(self) -> None:
         parsed = layoutctl.parse_arguments(["profile", "delete", "coding", "--confirm"])

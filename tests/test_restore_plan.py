@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 
 from backend.plan_store import PlanNotFoundError, plans_directory, profile_digest, read_plan
 from backend.profile_store import write_profile
@@ -13,6 +14,7 @@ from backend.restore import (
     Plan,
     PlanBlocked,
     PlanError,
+    SystemReplayExecutor,
     build_plan,
     compatibility_blockers,
     build_replay_actions,
@@ -21,6 +23,38 @@ from backend.restore import (
     revalidate_approved_plan,
     restore_approved_plan,
 )
+
+
+class SystemReplayExecutorTests(unittest.TestCase):
+    def test_wait_requires_the_new_window_when_browser_classes_repeat(self) -> None:
+        old = {"address": "0x1", "class": "Brave-browser", "workspace": {"id": 4}}
+        new = {"address": "0x2", "class": "Brave-browser", "workspace": {"id": 4}}
+
+        class Reader:
+            def __init__(self) -> None:
+                self.responses = [[old], [old], [old, new]]
+                self.reads = 0
+
+            def read_json(self, subject: str):
+                self.reads += 1
+                return self.responses.pop(0)
+
+        elapsed = [0.0]
+        reader = Reader()
+        executor = SystemReplayExecutor(
+            target_workspace_id=4,
+            reader=reader,
+            runner=lambda *args, **kwargs: SimpleNamespace(returncode=0),
+            clock=lambda: elapsed[0],
+            sleeper=lambda seconds: elapsed.__setitem__(0, elapsed[0] + seconds),
+            timeout=1,
+            poll_interval=0.1,
+        )
+
+        executor.launch(["omarchy-launch-webapp", "https://example.invalid"])
+
+        self.assertTrue(executor.wait_for_window("window-2", "Brave-browser", "tiled"))
+        self.assertEqual(reader.reads, 3)
 
 
 def node(identifier: str, wm_class: str, desktop_id: str | None, ordinal: int = 1) -> dict[str, object]:

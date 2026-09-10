@@ -10,7 +10,9 @@ menu, a verified Quickshell-to-backend argv
 bridge, validated atomic profile management, fixture-driven safe capture, pure
 Dwindle tree inference for supported slicing geometries, and guarded restore
 replay. Capture uses JSON-only Hyprland queries and desktop-entry IDs; it does
-not persist process command lines or execute launchers. `plan` previews a
+not persist process command lines or execute launchers. Browser-hosted Omarchy
+webapps are reviewed only when their shared browser class is ambiguous; the
+saved profile contains the selected desktop-entry ID, never its URL. `plan` previews a
 restore and refuses a non-empty workspace; `restore` revalidates and consumes
 a single-use token after the QML client records fresh, short-lived evidence
 for the exact Lua bridge as part of the confirmed restore flow.

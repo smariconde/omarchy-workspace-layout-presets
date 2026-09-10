@@ -20,7 +20,9 @@ if __package__ in (None, ""):  # pragma: no cover - taken only by `backend/layou
     # before the package imports below; `python -m backend.layoutctl` skips this.
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from backend.capture import CaptureError, SystemHyprctlReader, capture_current_workspace
+from backend.capture import CaptureError, SystemHyprctlReader
+from backend.capture_review import commit_capture, prepare_capture
+from backend.capture_store import CaptureStoreError
 from backend.bridge_attestation import AttestationError, read_attestation, validate_attestation
 from backend.launchers import desktop_entry_command, desktop_entry_metadata
 from backend.profile_store import (
@@ -68,7 +70,12 @@ def parse_arguments(arguments: list[str]) -> argparse.Namespace:
     commands = parser.add_subparsers(dest="command", required=True)
 
     capture = commands.add_parser("capture", add_help=False)
-    capture.add_argument("name")
+    capture_actions = capture.add_subparsers(dest="capture_action", required=True)
+    capture_prepare = capture_actions.add_parser("prepare", add_help=False)
+    capture_prepare.add_argument("name")
+    capture_commit = capture_actions.add_parser("commit", add_help=False)
+    capture_commit.add_argument("capture_id")
+    capture_commit.add_argument("assignments_json")
 
     plan = commands.add_parser("plan", add_help=False)
     plan.add_argument("profile_id")
@@ -175,7 +182,8 @@ def restore_command(plan_id: str) -> dict[str, Any]:
 def execute(
     arguments: list[str],
     profile_lister: Callable[[], list[str]] = list_profiles,
-    capture_workspace: Callable[[str], tuple[str, dict[str, Any]]] = capture_current_workspace,
+    capture_preparer: Callable[[str], tuple[dict[str, Any], list[dict[str, str]]]] = prepare_capture,
+    capture_committer: Callable[[str, str], tuple[str, dict[str, Any]]] = commit_capture,
     planner: Callable[[str], tuple[dict[str, Any], list[dict[str, str]]]] = plan_profile,
     restorer: Callable[[str], dict[str, Any]] = restore_command,
 ) -> tuple[int, dict[str, Any]]:
@@ -187,9 +195,15 @@ def execute(
 
     if args.command == "capture":
         try:
-            profile_id, profile = capture_workspace(args.name)
-            return EXIT_OK, result_ok({"profileId": profile_id, "profile": profile}, warnings=profile["warnings"])
-        except CaptureError as error:
+            if args.capture_action == "prepare":
+                data, warnings = capture_preparer(args.name)
+                return EXIT_OK, result_ok(data, warnings=warnings)
+            profile_id, profile = capture_committer(args.capture_id, args.assignments_json)
+            return EXIT_OK, result_ok(
+                {"saved": True, "profileId": profile_id, "profile": profile, "review": []},
+                warnings=profile["warnings"],
+            )
+        except (CaptureError, CaptureStoreError) as error:
             return EXIT_ERROR, result_error("capture_error", str(error))
         except ProfileAlreadyExistsError as error:
             return EXIT_ERROR, result_blocked([{"code": "already_exists", "message": str(error)}])

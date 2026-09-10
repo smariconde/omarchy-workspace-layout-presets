@@ -4,7 +4,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from backend.launchers import LauncherError, desktop_entry_command, desktop_entry_metadata, resolve_desktop_id
+from backend.launchers import (
+    LauncherError,
+    desktop_entry_command,
+    desktop_entry_metadata,
+    list_webapp_entries,
+    resolve_desktop_id,
+)
 
 
 class LauncherResolutionTests(unittest.TestCase):
@@ -84,3 +90,27 @@ class LauncherResolutionTests(unittest.TestCase):
 
             self.assertIsNone(desktop_entry_metadata("missing", directories=[directory]))
             self.assertIsNone(desktop_entry_metadata("broken", directories=[directory]))
+
+    def test_webapps_with_spaces_are_listed_and_launchable_without_leaking_urls(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = Path(temporary_directory)
+            (directory / "Google Docs.desktop").write_text(
+                "[Desktop Entry]\nType=Application\nName=Google Docs\n"
+                "Exec=omarchy-launch-webapp https://docs.google.com/\n",
+                encoding="utf-8",
+            )
+
+            entries = list_webapp_entries(directories=[directory])
+
+            self.assertEqual(entries, [{"desktopId": "Google Docs", "displayName": "Google Docs"}])
+            self.assertEqual(
+                desktop_entry_command("Google Docs", directories=[directory]),
+                ["omarchy-launch-webapp", "https://docs.google.com/"],
+            )
+            self.assertNotIn("google.com", str(entries))
+
+    def test_desktop_ids_with_path_components_remain_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            for desktop_id in ("../YouTube", "folder/YouTube", "folder\\YouTube", " YouTube"):
+                with self.subTest(desktop_id=desktop_id), self.assertRaises(LauncherError):
+                    desktop_entry_command(desktop_id, directories=[Path(temporary_directory)])

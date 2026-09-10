@@ -17,6 +17,9 @@ Ui.Panel {
     property var selectedProfileData: null
     property var selectedProfileDetails: []
     property var planData: null
+    property var captureReview: null
+    property var captureAssignments: ({})
+    property int captureSelectionRevision: 0
     property bool confirmDelete: false
     property string statusText: ""
 
@@ -57,6 +60,40 @@ Ui.Panel {
         if (!action()) statusText = "The backend is busy."
         else statusText = text
     }
+    function cancelCaptureReview() {
+        captureReview = null
+        captureAssignments = ({})
+        captureSelectionRevision++
+        statusText = "Capture cancelled. No preset was saved."
+    }
+    function captureOptions(review) {
+        let options = [{ value: "", label: "Choose launcher…" },
+                       { value: "../omit", label: "Do not restore this window" }]
+        for (let candidate of review.candidates || [])
+            options.push({ value: candidate.desktopId, label: candidate.displayName })
+        return options
+    }
+    function allCaptureChoicesMade() {
+        captureSelectionRevision
+        if (!captureReview || !captureReview.review) return false
+        for (let review of captureReview.review)
+            if (!captureAssignments[review.nodeId]) return false
+        return true
+    }
+    function commitCaptureReview() {
+        if (!allCaptureChoicesMade()) {
+            statusText = "Choose a launcher for every browser window."
+            return
+        }
+        let choices = ({})
+        for (let review of captureReview.review) {
+            let value = captureAssignments[review.nodeId]
+            choices[review.nodeId] = value === "../omit" ? null : value
+        }
+        runAction(function() {
+            return client.commitCapture(captureReview.captureId, choices)
+        }, "Saving reviewed preset…")
+    }
 
     Connections {
         target: client
@@ -74,6 +111,32 @@ Ui.Panel {
                 return
             }
             if (response && response.status === "ok") {
+                if (operation === "capture-prepare") {
+                    if (response.data.saved) {
+                        root.captureReview = null
+                        root.captureAssignments = ({})
+                        captureName.text = ""
+                        root.statusText = "Layout saved successfully."
+                        root.refresh()
+                    } else {
+                        root.captureReview = response.data
+                        let initial = ({})
+                        for (let review of response.data.review || [])
+                            initial[review.nodeId] = review.suggestedDesktopId || ""
+                        root.captureAssignments = initial
+                        root.captureSelectionRevision++
+                        root.statusText = "Confirm which web app belongs to each browser window."
+                    }
+                    return
+                }
+                if (operation === "capture-commit") {
+                    root.captureReview = null
+                    root.captureAssignments = ({})
+                    captureName.text = ""
+                    root.statusText = "Layout saved with web apps."
+                    root.refresh()
+                    return
+                }
                 if (operation === "profile-show") {
                     root.selectedProfileData = response.data.profile
                     root.selectedProfileDetails = response.data.details || []
@@ -83,15 +146,13 @@ Ui.Panel {
                     preview.warnings = response.warnings || []
                     root.planData = preview
                 }
-                if (operation === "capture" || operation === "profile-rename"
+                if (operation === "profile-rename"
                         || operation === "profile-duplicate" || operation === "profile-delete"
                         || operation === "profile-import") {
                     if (operation === "profile-delete") {
                         root.clearSelection()
                     }
-                        root.statusText = operation === "capture"
-                            ? "Layout saved successfully."
-                            : "Operation completed successfully."
+                        root.statusText = "Operation completed successfully."
                     root.refresh()
                 }
                 if (operation === "restore") {
@@ -177,6 +238,7 @@ Ui.Panel {
                         height: Style.spacing.controlHeight
                         placeholderText: "Preset name"
                         selectByMouse: true
+                        enabled: root.captureReview === null
                         onAccepted: saveButton.clicked()
                     }
                     Ui.Button {
@@ -184,6 +246,7 @@ Ui.Panel {
                         width: Style.space(142)
                         height: Style.spacing.controlHeight
                         text: "Save"
+                        enabled: root.captureReview === null
                         foreground: Color.accent
                         bordered: true
                         onClicked: {
@@ -193,7 +256,98 @@ Ui.Panel {
                                 return
                             }
                             root.runAction(function() { return client.capture(captureName.text.trim()) }, "Saving preset…")
-                            captureName.text = ""
+                        }
+                    }
+                }
+
+                Ui.BorderSurface {
+                    visible: root.captureReview !== null
+                    width: parent.width
+                    height: root.captureReview
+                        ? Style.space(122) + root.captureReview.review.length * Style.space(72) : 0
+                    color: Util.alpha(Color.accent, 0.08)
+                    borderSpec: Border.flat(Util.alpha(Color.accent, 0.58), Style.normalBorderWidth)
+                    radius: Style.cornerRadius
+
+                    Column {
+                        anchors.fill: parent
+                        anchors.margins: Style.spacing.sm
+                        spacing: Style.spacing.xs
+
+                        Text {
+                            width: parent.width
+                            text: "Identify browser windows"
+                            color: Color.popups.text
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.body
+                            font.weight: Font.Medium
+                        }
+                        Text {
+                            width: parent.width
+                            text: "Omarchy web apps share the browser class. Confirm each launcher; only its desktop ID is saved."
+                            color: Color.popups.text
+                            opacity: 0.66
+                            wrapMode: Text.WordWrap
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.caption
+                        }
+
+                        Repeater {
+                            model: root.captureReview ? root.captureReview.review : []
+                            delegate: Column {
+                                required property var modelData
+                                width: parent.width
+                                spacing: Style.spacing.xxs
+                                Text {
+                                    width: parent.width
+                                    text: {
+                                        let title = modelData.title ? " — " + modelData.title : ""
+                                        return modelData.wmClass + " #" + modelData.ordinal + title
+                                    }
+                                    textFormat: Text.PlainText
+                                    color: Color.popups.text
+                                    opacity: 0.76
+                                    elide: Text.ElideRight
+                                    font.family: Style.font.family
+                                    font.pixelSize: Style.font.caption
+                                }
+                                Ui.SearchableDropdown {
+                                    width: parent.width
+                                    height: Style.spacing.controlHeight
+                                    showLabel: false
+                                    placeholderText: "Search installed web apps…"
+                                    emptyText: "No matching launcher"
+                                    options: root.captureOptions(modelData)
+                                    value: root.captureAssignments[modelData.nodeId] || ""
+                                    onChanged: function(value) {
+                                        let updated = Object.assign({}, root.captureAssignments)
+                                        updated[modelData.nodeId] = value
+                                        root.captureAssignments = updated
+                                        root.captureSelectionRevision++
+                                    }
+                                }
+                            }
+                        }
+
+                        Row {
+                            width: parent.width
+                            spacing: Style.spacing.xs
+                            Ui.Button {
+                                width: (parent.width - parent.spacing) / 2
+                                height: Style.spacing.controlHeight
+                                text: "Cancel"
+                                bordered: true
+                                onClicked: root.cancelCaptureReview()
+                            }
+                            Ui.Button {
+                                width: (parent.width - parent.spacing) / 2
+                                height: Style.spacing.controlHeight
+                                text: "Save preset"
+                                enabled: root.allCaptureChoicesMade() && !client.running
+                                bordered: true
+                                foreground: Color.accent
+                                onClicked: root.commitCaptureReview()
+                            }
                         }
                     }
                 }
