@@ -61,8 +61,10 @@ panel; it does not need an entry in the general Omarchy Trigger menu.
 
 1. The user switches to an empty workspace.
 2. They open the panel and choose a preset.
-3. A preview lists the windows to launch, their layout, unresolved entries and
-   compatibility warnings.
+3. A concise preview shows how many applications will open, the target
+   workspace, and only actionable warnings. The selected preset's app list
+   remains visible; internal layout modes and compatibility mechanics are not
+   exposed.
 4. The user confirms **Restore** in that preview; no second confirmation is shown.
 5. The plugin launches only the needed apps into that workspace, reconstructs
    the Dwindle tree, then positions floating windows.

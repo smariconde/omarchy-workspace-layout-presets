@@ -46,7 +46,11 @@ backend/layoutctl.py                typed JSON CLI boundary, one JSON object per
               └── atomic_json.py    shared private, all-or-nothing write primitive
 ```
 
-Milestones M0–M4 are done (contract, QML bridge, profile storage, safe capture, Dwindle inference, restore planning). `restore` still returns the `unimplemented` JSON error with exit code 3, and its compatibility guard (Hyprland version, supported dispatches) is deliberately deferred to M5 until a spike verifies it. `Panel.qml` and `qml/ProfileList.qml` etc. are still inert placeholders.
+Milestones M0–M4 and M6 are done. M5 has a guarded replay executor, fresh
+QML-generated bridge attestation, asynchronous desktop-entry launch, exact
+window-address tracking and result verification; its remaining gate is a full
+end-to-end replay in a disposable workspace. The panel and profile-management
+QML are functional.
 
 QML runs `backend/layoutctl.py` by absolute path, so it inserts the plugin directory into `sys.path` when invoked without a package and imports `backend.*` in both modes. A test runs the file as a subprocess to keep that path working.
 

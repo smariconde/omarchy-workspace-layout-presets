@@ -196,6 +196,13 @@ convertir a la escala exacta 0.1–1.9 de Dwindle. El replay ahora conserva la
 dirección observada por `windowId`, enfoca por la dirección exacta de la ventana,
 convierte el ratio y comprueba la geometría final en vez de declarar éxito sólo
 por contar clases.
+Una prueba con Chromium reveló que los launchers de aplicaciones también se
+ejecutaban con el timeout de cinco segundos reservado para dispatches breves;
+cuando Chromium iniciaba un proceso nuevo, ese timeout lo terminaba. Los
+launchers ahora se crean sin espera, con `shell=False`, descriptores cerrados y
+una sesión independiente, mientras el executor sigue detectando la ventana por
+la nueva dirección de Hyprland con un plazo independiente de 30 segundos para
+aplicaciones lentas.
 Queda pendiente la prueba end-to-end del replay controlado.
 
 ### M6 — Interfaz V1 — Hecho
@@ -209,9 +216,12 @@ Queda pendiente la prueba end-to-end del replay controlado.
 
 **Cierre:** el flujo completo de la beta funcional está disponible desde el menú.
 
-**Ajuste de UX:** **Use** crea el preview y **Restore** confirma y ejecuta. Se
-eliminó la segunda confirmación **Restore here**; un preview vencido exige
-generar otro con **Use**. Los resultados de procesos se notifican en el
+**Ajuste de UX:** **Restore…** crea el preview y **Restore** confirma y ejecuta.
+Se eliminó la segunda confirmación **Restore here**; un preview vencido exige
+generar otro. El detalle y el preview muestran sólo nombres de apps, cantidad,
+workspace objetivo y advertencias accionables; modos internos, clases de
+ventana, monitor, categorías y mensajes técnicos del backend quedan ocultos.
+Los resultados de procesos se notifican en el
 siguiente ciclo de eventos para que Save y Delete puedan refrescar la lista
 sin ser rechazados por el estado transitorio `running` de Quickshell. Además,
 cada instancia vuelve a listar perfiles al abrirse para reflejar cambios

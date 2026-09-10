@@ -67,17 +67,21 @@ class SystemReplayExecutor:
         target_workspace_id: int,
         reader: HyprctlReader,
         runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
+        launcher: Callable[..., subprocess.Popen[Any]] = subprocess.Popen,
         clock: Callable[[], float] = time.monotonic,
         sleeper: Callable[[float], None] = time.sleep,
-        timeout: float = 5.0,
+        command_timeout: float = 5.0,
+        window_timeout: float = 30.0,
         poll_interval: float = 0.1,
     ) -> None:
         self._target_workspace_id = target_workspace_id
         self._reader = reader
         self._runner = runner
+        self._launcher = launcher
         self._clock = clock
         self._sleeper = sleeper
-        self._timeout = timeout
+        self._command_timeout = command_timeout
+        self._window_timeout = window_timeout
         self._poll_interval = poll_interval
         self._addresses_before_launch: set[str] = set()
         self._window_addresses: dict[str, str] = {}
@@ -88,7 +92,7 @@ class SystemReplayExecutor:
         except (OSError, CaptureError) as error:
             raise ReplayError("could not snapshot target windows before launch") from error
         if not isinstance(clients, list):
-            return set()
+            raise ReplayError("Hyprland clients snapshot was not an array")
         return {
             client["address"]
             for client in clients
@@ -106,7 +110,7 @@ class SystemReplayExecutor:
                 argv,
                 capture_output=True,
                 text=True,
-                timeout=self._timeout,
+                timeout=self._command_timeout,
                 check=False,
                 shell=False,
             )
@@ -120,7 +124,24 @@ class SystemReplayExecutor:
         # target workspace so wait_for_window observes the window created by
         # this launch instead of accepting an older matching instance.
         self._addresses_before_launch = self._target_addresses()
-        self._run(argv)
+        if not argv or not all(isinstance(argument, str) and argument for argument in argv):
+            raise ReplayError("executor received an invalid launcher argv")
+        try:
+            # Applications are expected to outlive this short-lived backend.
+            # Waiting with the dispatch timeout would kill a new browser
+            # process after five seconds; a separate session also prevents
+            # Quickshell from treating it as part of layoutctl's process tree.
+            self._launcher(
+                argv,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                close_fds=True,
+                start_new_session=True,
+                shell=False,
+            )
+        except (OSError, ValueError) as error:
+            raise ReplayError(f"launcher failed to execute: {argv[0]!r}") from error
 
     def dispatch(self, argv: list[str]) -> None:
         self._run(argv)
@@ -143,28 +164,35 @@ class SystemReplayExecutor:
 
     def wait_for_window(self, window_id: str, wm_class: str, placement: str) -> bool:
         del placement
-        deadline = self._clock() + self._timeout
+        deadline = self._clock() + self._window_timeout
         while self._clock() <= deadline:
-            clients = self._reader.read_json("clients")
-            if isinstance(clients, list):
-                for client in clients:
-                    if (
-                        isinstance(client, Mapping)
-                        and isinstance(client.get("address"), str)
-                        and client["address"] not in self._addresses_before_launch
-                        and isinstance(client.get("class"), str)
-                        and client["class"].casefold() == wm_class.casefold()
-                        and isinstance(client.get("workspace"), Mapping)
-                        and client["workspace"].get("id") == self._target_workspace_id
-                    ):
-                        self._addresses_before_launch.add(client["address"])
-                        self._window_addresses[window_id] = client["address"]
-                        return True
+            try:
+                clients = self._reader.read_json("clients")
+            except (OSError, CaptureError) as error:
+                raise ReplayError("could not observe target windows after launch") from error
+            if not isinstance(clients, list):
+                raise ReplayError("Hyprland clients response was not an array after launch")
+            for client in clients:
+                if (
+                    isinstance(client, Mapping)
+                    and isinstance(client.get("address"), str)
+                    and client["address"] not in self._addresses_before_launch
+                    and isinstance(client.get("class"), str)
+                    and client["class"].casefold() == wm_class.casefold()
+                    and isinstance(client.get("workspace"), Mapping)
+                    and client["workspace"].get("id") == self._target_workspace_id
+                ):
+                    self._addresses_before_launch.add(client["address"])
+                    self._window_addresses[window_id] = client["address"]
+                    return True
             self._sleeper(self._poll_interval)
         return False
 
     def verify(self, plan: Mapping[str, Any]) -> Mapping[str, Any]:
-        clients = self._reader.read_json("clients")
+        try:
+            clients = self._reader.read_json("clients")
+        except (OSError, CaptureError) as error:
+            raise ReplayError("could not read target windows during verification") from error
         target = plan["target"]
         if not isinstance(target, Mapping) or not isinstance(target.get("workspace"), Mapping):
             raise ReplayError("plan target is malformed during verification")

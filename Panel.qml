@@ -32,9 +32,34 @@ Ui.Panel {
     Plugin.LayoutctlClient { id: client }
 
     function messageFrom(response, fallback) {
-        if (response && response.error && response.error.message) return response.error.message
-        if (response && response.blocked && response.blocked.length) return response.blocked[0].message
+        if (response && response.blocked && response.blocked.length)
+            return friendlyIssue(response.blocked[0].code, fallback)
+        if (response && response.error)
+            return friendlyIssue(response.error.code, fallback)
         return fallback
+    }
+    function friendlyIssue(code, fallback) {
+        switch (code) {
+        case "workspace_not_empty": return "This workspace must be empty."
+        case "unsupported_workspace": return "Switch to a regular workspace."
+        case "nothing_to_restore": return "No apps in this preset can be opened."
+        case "already_exists": return "A preset with this name already exists."
+        case "plan_profile_mismatch":
+        case "profile_changed":
+        case "target_changed": return "This preview is no longer current. Open it again."
+        case "unsupported_hyprland":
+        case "unsupported_layout":
+        case "dispatch_unverified": return "Restore isn't available right now."
+        case "monitor_unavailable": return "Couldn't identify the current screen."
+        case "capture_error": return "Couldn't save this workspace."
+        case "plan_error": return "Couldn't prepare this preset."
+        case "restore_error":
+        case "replay_error": return "Couldn't restore this preset."
+        case "profile_error": return "This preset can't be used."
+        case "hyprland_error": return "Couldn't read the current workspace."
+        case "storage_error": return "Couldn't access saved presets."
+        default: return fallback
+        }
     }
     function refresh() {
         if (!client.listProfiles()) return false
@@ -57,7 +82,7 @@ Ui.Panel {
         client.showProfile(profileId)
     }
     function runAction(action, text) {
-        if (!action()) statusText = "The backend is busy."
+        if (!action()) statusText = "Please wait."
         else statusText = text
     }
     function cancelCaptureReview() {
@@ -67,7 +92,7 @@ Ui.Panel {
         statusText = "Capture cancelled. No preset was saved."
     }
     function captureOptions(review) {
-        let options = [{ value: "", label: "Choose launcher…" },
+        let options = [{ value: "", label: "Choose app…" },
                        { value: "../omit", label: "Do not restore this window" }]
         for (let candidate of review.candidates || [])
             options.push({ value: candidate.desktopId, label: candidate.displayName })
@@ -82,7 +107,7 @@ Ui.Panel {
     }
     function commitCaptureReview() {
         if (!allCaptureChoicesMade()) {
-            statusText = "Choose a launcher for every browser window."
+            statusText = "Choose an app for every browser window."
             return
         }
         let choices = ({})
@@ -105,9 +130,9 @@ Ui.Panel {
                     if (root.selectedProfile !== "" && profiles.indexOf(root.selectedProfile) < 0)
                         root.clearSelection()
                     root.statusText = root.profiles.length
-                        ? "Select a preset to see its details and actions."
+                        ? ""
                         : "No saved presets yet."
-                } else root.statusText = root.messageFrom(response, stderrText || "Could not list presets.")
+                } else root.statusText = root.messageFrom(response, "Couldn't load presets.")
                 return
             }
             if (response && response.status === "ok") {
@@ -116,7 +141,7 @@ Ui.Panel {
                         root.captureReview = null
                         root.captureAssignments = ({})
                         captureName.text = ""
-                        root.statusText = "Layout saved successfully."
+                        root.statusText = "Preset saved."
                         root.refresh()
                     } else {
                         root.captureReview = response.data
@@ -125,7 +150,7 @@ Ui.Panel {
                             initial[review.nodeId] = review.suggestedDesktopId || ""
                         root.captureAssignments = initial
                         root.captureSelectionRevision++
-                        root.statusText = "Confirm which web app belongs to each browser window."
+                        root.statusText = "Choose the matching app."
                     }
                     return
                 }
@@ -133,7 +158,7 @@ Ui.Panel {
                     root.captureReview = null
                     root.captureAssignments = ({})
                     captureName.text = ""
-                    root.statusText = "Layout saved with web apps."
+                    root.statusText = "Preset saved."
                     root.refresh()
                     return
                 }
@@ -156,13 +181,22 @@ Ui.Panel {
                     root.refresh()
                 }
                 if (operation === "restore") {
-                    root.statusText = response.data.failures && response.data.failures.length
-                        ? "Partial restore: review the result."
-                        : "Layout restored successfully."
+                    const verification = response.data.verification || {}
+                    const expected = verification.expected
+                    const matched = verification.matched
+                    if (response.data.failures && response.data.failures.length) {
+                        root.statusText = Number.isInteger(expected) && Number.isInteger(matched)
+                            ? (matched + " of " + expected + " apps restored.")
+                            : "Some apps couldn't be restored."
+                    } else {
+                        root.statusText = Number.isInteger(matched)
+                            ? (matched + (matched === 1 ? " app restored." : " apps restored."))
+                            : "Preset restored."
+                    }
                     root.planData = null
                 }
             } else {
-                root.statusText = root.messageFrom(response, stderrText || "The operation was blocked.")
+                root.statusText = root.messageFrom(response, "Couldn't complete that action.")
                 root.confirmDelete = false
             }
         }
@@ -205,7 +239,7 @@ Ui.Panel {
                         font.weight: Font.Medium
                     }
                     Text {
-                        text: "For the active workspace"
+                        text: "Save or restore this workspace."
                         color: Color.popups.text
                         opacity: 0.58
                         font.family: Style.font.family
@@ -213,15 +247,6 @@ Ui.Panel {
                     }
                 }
 
-                Text {
-                    width: parent.width
-                    text: "Save and restore only in the active, empty workspace."
-                    color: Color.popups.text
-                    opacity: 0.66
-                    wrapMode: Text.WordWrap
-                    font.family: Style.font.family
-                    font.pixelSize: Style.font.bodySmall
-                }
                 Rectangle {
                     width: parent.width
                     height: Style.spacing.hairline
@@ -276,7 +301,7 @@ Ui.Panel {
 
                         Text {
                             width: parent.width
-                            text: "Identify browser windows"
+                            text: "Choose an app"
                             color: Color.popups.text
                             font.family: Style.font.family
                             font.pixelSize: Style.font.body
@@ -284,7 +309,7 @@ Ui.Panel {
                         }
                         Text {
                             width: parent.width
-                            text: "Omarchy web apps share the browser class. Confirm each launcher; only its desktop ID is saved."
+                            text: "Choose what should open for each browser window."
                             color: Color.popups.text
                             opacity: 0.66
                             wrapMode: Text.WordWrap
@@ -301,8 +326,7 @@ Ui.Panel {
                                 Text {
                                     width: parent.width
                                     text: {
-                                        let title = modelData.title ? " — " + modelData.title : ""
-                                        return modelData.wmClass + " #" + modelData.ordinal + title
+                                        return modelData.title || ("Browser window " + modelData.ordinal)
                                     }
                                     textFormat: Text.PlainText
                                     color: Color.popups.text
@@ -315,8 +339,8 @@ Ui.Panel {
                                     width: parent.width
                                     height: Style.spacing.controlHeight
                                     showLabel: false
-                                    placeholderText: "Search installed web apps…"
-                                    emptyText: "No matching launcher"
+                                    placeholderText: "Search installed apps…"
+                                    emptyText: "No matching app"
                                     options: root.captureOptions(modelData)
                                     value: root.captureAssignments[modelData.nodeId] || ""
                                     onChanged: function(value) {
@@ -397,7 +421,7 @@ Ui.Panel {
                     Ui.Button {
                         width: (parent.width - parent.spacing) / 2
                         height: Style.spacing.controlHeight
-                        text: "Use"
+                        text: "Restore…"
                         enabled: root.selectedProfile !== ""
                         bordered: true
                         foreground: Color.accent
@@ -456,12 +480,12 @@ Ui.Panel {
 
                 Plugin.RestorePreview {
                     width: parent.width
-                    height: root.planData ? Style.space(132) : 0
+                    height: root.planData ? Style.space(116) : 0
                     plan: root.planData
                     busy: client.running
                     onRestoreRequested: root.runAction(
                         function() { return client.restore(root.planData.planId) },
-                        "Verifying compatibility…")
+                        "Restoring…")
                 }
 
                 Ui.BorderSurface {
@@ -483,9 +507,11 @@ Ui.Panel {
                             font.pixelSize: Style.font.caption
                             font.weight: Font.Medium
                             text: root.selectedProfileData
-                                ? (root.selectedProfileData.name + " · " + root.selectedProfileData.layoutConfidence
-                                   + " · workspace " + root.selectedProfileData.source.workspace.name
-                                   + " · " + root.selectedProfileData.source.monitor.connector)
+                                ? (root.selectedProfileData.name + " · "
+                                   + (root.selectedProfileData.tiled.nodes.length
+                                      + root.selectedProfileData.floating.length)
+                                   + ((root.selectedProfileData.tiled.nodes.length
+                                       + root.selectedProfileData.floating.length) === 1 ? " app" : " apps"))
                                 : ""
                             elide: Text.ElideRight
                         }
@@ -495,10 +521,7 @@ Ui.Panel {
                             opacity: 0.66
                             font.family: Style.font.family
                             font.pixelSize: Style.font.caption
-                            text: root.selectedProfileData
-                                ? ("Tiled: " + root.selectedProfileData.tiled.nodes.length
-                                   + " · Floating: " + root.selectedProfileData.floating.length)
-                                : ""
+                            text: root.selectedProfileData ? "Apps in this preset" : ""
                         }
                         ListView {
                             width: parent.width
@@ -517,12 +540,8 @@ Ui.Panel {
                                 text: {
                                     let metadata = modelData.metadata
                                     let name = metadata && metadata.displayName
-                                        ? metadata.displayName : modelData.wmClass
-                                    let kind = metadata && metadata.kind === "webapp"
-                                        ? "Web app" : "Application"
-                                    let category = metadata && metadata.categories && metadata.categories.length
-                                        ? " · " + metadata.categories.join(", ") : ""
-                                    return name + " · " + kind + category + " · " + modelData.placement
+                                        ? metadata.displayName : "Unavailable app"
+                                    return name
                                 }
                             }
                         }
@@ -532,7 +551,7 @@ Ui.Panel {
                 Text {
                     width: parent.width
                     text: root.statusText
-                    color: root.statusText.indexOf("blocked") >= 0 || root.statusText.indexOf("Could not") >= 0
+                    color: root.statusText.indexOf("Couldn't") >= 0 || root.statusText.indexOf("must be") >= 0
                         ? Color.urgent : Color.popups.text
                     opacity: 0.75
                     wrapMode: Text.WordWrap

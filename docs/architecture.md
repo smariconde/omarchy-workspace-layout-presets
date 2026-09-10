@@ -231,7 +231,12 @@ Los ratios del perfil expresan la fracción ocupada por el lado nuevo. Antes de
 `splitratio … exact`, se convierten a la escala Dwindle donde `1.0` representa
 50/50 y, con el `split_bias = 0` predeterminado de Omarchy, el valor se aplica
 al lado superior/izquierdo. La compilación escapa las cadenas Lua y nunca
-produce shell source. El executor
+produce shell source. El proceso del launcher se crea de forma asíncrona, con
+`shell=False`, sus descriptores estándar cerrados y una sesión independiente:
+una aplicación debe poder vivir más que el proceso breve de `layoutctl` y nunca
+se termina por el timeout reservado a los dispatches. La espera de la nueva
+dirección de ventana es un límite separado de 30 segundos; vencerlo produce un
+resultado parcial sin cerrar el proceso ni intentar rollback. El executor
 consume estas acciones sólo después de revalidar el token, el perfil y el
 workspace; una acción fallida se reporta como resultado parcial y no provoca
 rollback destructivo. Antes de cada acción vuelve a enfocar el workspace

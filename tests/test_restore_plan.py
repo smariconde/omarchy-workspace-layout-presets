@@ -2,18 +2,21 @@ from __future__ import annotations
 
 import copy
 import json
+import subprocess
 import tempfile
 import unittest
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 
+from backend.capture import CaptureError
 from backend.plan_store import PlanNotFoundError, plans_directory, profile_digest, read_plan
 from backend.profile_store import write_profile
 from backend.restore import (
     Plan,
     PlanBlocked,
     PlanError,
+    ReplayError,
     SystemReplayExecutor,
     build_plan,
     compatibility_blockers,
@@ -42,18 +45,24 @@ class SystemReplayExecutorTests(unittest.TestCase):
         elapsed = [0.0]
         reader = Reader()
         commands = []
+        launches = []
         executor = SystemReplayExecutor(
             target_workspace_id=4,
             reader=reader,
             runner=lambda argv, **kwargs: commands.append(argv) or SimpleNamespace(returncode=0),
+            launcher=lambda argv, **kwargs: launches.append((argv, kwargs)) or SimpleNamespace(),
             clock=lambda: elapsed[0],
             sleeper=lambda seconds: elapsed.__setitem__(0, elapsed[0] + seconds),
-            timeout=1,
+            command_timeout=1,
+            window_timeout=1,
             poll_interval=0.1,
         )
 
         executor.launch(["omarchy-launch-webapp", "https://example.invalid"])
 
+        self.assertEqual(launches[0][0], ["omarchy-launch-webapp", "https://example.invalid"])
+        self.assertTrue(launches[0][1]["start_new_session"])
+        self.assertFalse(launches[0][1]["shell"])
         self.assertTrue(executor.wait_for_window("window-2", "Brave-browser", "tiled"))
         executor.focus_window("window-2", "Brave-browser")
         self.assertEqual(reader.reads, 3)
@@ -61,6 +70,90 @@ class SystemReplayExecutorTests(unittest.TestCase):
             commands[-1],
             ["hyprctl", "dispatch", 'hl.dsp.focus({ window = "address:0x2" })'],
         )
+
+    def test_launch_does_not_apply_the_dispatch_timeout_to_a_long_lived_application(self) -> None:
+        class Reader:
+            def read_json(self, subject: str):
+                return []
+
+        launches = []
+        executor = SystemReplayExecutor(
+            target_workspace_id=4,
+            reader=Reader(),
+            runner=lambda *args, **kwargs: self.fail("application launch must not use subprocess.run"),
+            launcher=lambda argv, **kwargs: launches.append((argv, kwargs)) or SimpleNamespace(),
+            command_timeout=5,
+        )
+
+        executor.launch(["/usr/bin/chromium"])
+
+        self.assertEqual(launches[0][0], ["/usr/bin/chromium"])
+        self.assertNotIn("timeout", launches[0][1])
+        self.assertEqual(launches[0][1]["stdout"], subprocess.DEVNULL)
+        self.assertEqual(launches[0][1]["stderr"], subprocess.DEVNULL)
+
+    def test_window_wait_has_a_longer_budget_than_short_dispatch_commands(self) -> None:
+        elapsed = [0.0]
+
+        class Reader:
+            def read_json(self, subject: str):
+                if elapsed[0] < 8:
+                    return []
+                return [{"address": "0x8", "class": "SlowApp", "workspace": {"id": 4}}]
+
+        executor = SystemReplayExecutor(
+            target_workspace_id=4,
+            reader=Reader(),
+            launcher=lambda argv, **kwargs: SimpleNamespace(),
+            clock=lambda: elapsed[0],
+            sleeper=lambda seconds: elapsed.__setitem__(0, elapsed[0] + seconds),
+            command_timeout=5,
+            window_timeout=30,
+            poll_interval=1,
+        )
+
+        executor.launch(["slow-app"])
+
+        self.assertTrue(executor.wait_for_window("slow", "SlowApp", "tiled"))
+        self.assertEqual(elapsed[0], 8)
+
+    def test_invalid_launcher_input_is_reported_as_a_replay_error(self) -> None:
+        class Reader:
+            def read_json(self, subject: str):
+                return []
+
+        def invalid_launcher(argv, **kwargs):
+            raise ValueError("embedded null byte")
+
+        executor = SystemReplayExecutor(
+            target_workspace_id=4,
+            reader=Reader(),
+            launcher=invalid_launcher,
+        )
+
+        with self.assertRaisesRegex(ReplayError, "launcher failed to execute"):
+            executor.launch(["invalid\0launcher"])
+
+    def test_hyprland_read_failure_after_launch_is_a_replay_error(self) -> None:
+        class Reader:
+            def __init__(self) -> None:
+                self.reads = 0
+
+            def read_json(self, subject: str):
+                self.reads += 1
+                if self.reads == 1:
+                    return []
+                raise CaptureError("socket disappeared")
+
+        executor = SystemReplayExecutor(
+            target_workspace_id=4,
+            reader=Reader(),
+            launcher=lambda argv, **kwargs: SimpleNamespace(),
+        )
+        executor.launch(["app"])
+
+        with self.assertRaisesRegex(ReplayError, "could not observe target windows"):
+            executor.wait_for_window("app", "App", "tiled")
 
     def test_verification_detects_a_restored_tree_with_swapped_sides(self) -> None:
         correct_clients = [

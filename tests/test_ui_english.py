@@ -22,7 +22,7 @@ class UserInterfaceLanguageTests(unittest.TestCase):
     def test_main_panel_exposes_only_the_three_primary_actions(self) -> None:
         source = (Path(__file__).resolve().parent.parent / "Panel.qml").read_text(encoding="utf-8")
         self.assertIn('text: "Save"', source)
-        self.assertIn('text: "Use"', source)
+        self.assertIn('text: "Restore…"', source)
         self.assertIn('text: "Delete"', source)
         for hidden_action in ('View details', 'Preview restore', 'Rename'):
             self.assertNotIn(hidden_action, source)
@@ -53,8 +53,55 @@ class UserInterfaceLanguageTests(unittest.TestCase):
 
     def test_expired_preview_requires_a_fresh_use_action(self) -> None:
         source = (Path(__file__).resolve().parent.parent / "qml" / "RestorePreview.qml").read_text(encoding="utf-8")
-        self.assertIn('"Preview expired. Press Use again."', source)
+        self.assertIn('"Preview expired. Open it again."', source)
         self.assertIn("!root.expired", source)
+
+    def test_profile_details_hide_implementation_metadata(self) -> None:
+        source = (Path(__file__).resolve().parent.parent / "Panel.qml").read_text(encoding="utf-8")
+
+        self.assertIn('text: root.selectedProfileData ? "Apps in this preset" : ""', source)
+        self.assertNotIn('root.selectedProfileData.layoutConfidence', source)
+        self.assertNotIn('root.selectedProfileData.source.workspace.name', source)
+        self.assertNotIn('root.selectedProfileData.source.monitor.connector', source)
+        self.assertNotIn('metadata.categories.join', source)
+        self.assertNotIn('modelData.placement', source)
+
+    def test_restore_preview_shows_only_actionable_summary(self) -> None:
+        source = (Path(__file__).resolve().parent.parent / "qml" / "RestorePreview.qml").read_text(encoding="utf-8")
+
+        self.assertIn('"Opens " + root.plan.summary.launch', source)
+        self.assertIn('" in workspace " + root.plan.target.workspace.name', source)
+        self.assertIn('return "Window positions may vary."', source)
+        self.assertNotIn('root.plan.layoutMode', source)
+        self.assertNotIn('root.plan.target.monitor.connector', source)
+        self.assertNotIn('root.plan.warnings[0].message', source)
+
+    def test_backend_codes_are_translated_to_plain_language(self) -> None:
+        source = (Path(__file__).resolve().parent.parent / "Panel.qml").read_text(encoding="utf-8")
+
+        self.assertIn('case "workspace_not_empty": return "This workspace must be empty."', source)
+        self.assertIn('case "replay_error": return "Couldn\'t restore this preset."', source)
+        self.assertNotIn('response.error.message', source)
+        self.assertNotIn('response.blocked[0].message', source)
+
+    def test_old_technical_explanations_are_not_user_facing(self) -> None:
+        root = Path(__file__).resolve().parent.parent
+        source = (root / "Panel.qml").read_text(encoding="utf-8")
+        source += (root / "qml" / "RestorePreview.qml").read_text(encoding="utf-8")
+
+        for old_text in (
+            'text: "For the active workspace"',
+            'text: "Save and restore only in the active, empty workspace."',
+            'text: "Restore preview"',
+            '"Tiled: "',
+            '" · Floating: "',
+            '"Verifying compatibility…"',
+            'label: "Choose launcher…"',
+            'emptyText: "No matching launcher"',
+            'text: "Identify browser windows"',
+        ):
+            with self.subTest(old_text=old_text):
+                self.assertNotIn(old_text, source)
 
     def test_process_results_are_deferred_until_the_client_is_idle(self) -> None:
         source = (Path(__file__).resolve().parent.parent / "qml" / "LayoutctlClient.qml").read_text(encoding="utf-8")
@@ -87,7 +134,7 @@ class UserInterfaceLanguageTests(unittest.TestCase):
         client = (root / "qml" / "LayoutctlClient.qml").read_text(encoding="utf-8")
 
         self.assertIn("Ui.SearchableDropdown", panel)
-        self.assertIn('text: "Identify browser windows"', panel)
+        self.assertIn('text: "Choose an app"', panel)
         self.assertIn('text: "Save preset"', panel)
         self.assertIn('["capture", "prepare", name]', client)
         self.assertIn('["capture", "commit", captureId, JSON.stringify(assignments)]', client)

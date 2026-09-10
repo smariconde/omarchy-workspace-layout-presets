@@ -15,6 +15,24 @@ Item {
     signal restoreRequested()
     visible: plan !== null
 
+    function warningText() {
+        if (!plan) return ""
+        const skipped = plan.summary ? plan.summary.skip : 0
+        if (skipped > 0)
+            return skipped + (skipped === 1 ? " app won't be opened." : " apps won't be opened.")
+        for (let warning of plan.warnings || []) {
+            if (warning.code === "layout_fallback" || warning.code === "tree_incomplete")
+                return "Window positions may vary."
+            if (warning.code === "monitor_changed")
+                return "Window sizes will adapt to this screen."
+            if (warning.code === "duplicate_window")
+                return "Repeated apps may open different content."
+            if (warning.code === "geometry_clamped")
+                return "Window sizes were adjusted to fit this screen."
+        }
+        return ""
+    }
+
     onPlanChanged: nowMillis = Date.now()
 
     Timer {
@@ -35,33 +53,22 @@ Item {
             anchors.margins: Style.spacing.sm
             spacing: Style.spacing.xs
 
-            Row {
+            Text {
                 width: parent.width
-                spacing: Style.spacing.sm
-                Text {
-                    width: parent.width - previewMode.width - parent.spacing
-                    text: root.plan ? "Restore preview" : ""
-                    color: Color.popups.text
-                    font.family: Style.font.family
-                    font.pixelSize: Style.font.title
-                    font.weight: Font.Medium
-                    elide: Text.ElideRight
-                }
-                Text {
-                    id: previewMode
-                    text: root.plan ? root.plan.layoutMode : ""
-                    color: Color.accent
-                    font.family: Style.font.family
-                    font.pixelSize: Style.font.caption
-                    font.weight: Font.Bold
-                }
+                text: root.plan ? ("Restore “" + root.plan.profileName + "”?") : ""
+                color: Color.popups.text
+                font.family: Style.font.family
+                font.pixelSize: Style.font.title
+                font.weight: Font.Medium
+                elide: Text.ElideRight
             }
 
             Text {
                 width: parent.width
                 text: root.plan
-                    ? ("Launch " + root.plan.summary.launch + " · skip " + root.plan.summary.skip
-                       + " · tiled " + root.plan.summary.tiled + " · floating " + root.plan.summary.floating)
+                    ? ("Opens " + root.plan.summary.launch
+                       + (root.plan.summary.launch === 1 ? " app" : " apps")
+                       + " in workspace " + root.plan.target.workspace.name + ".")
                     : ""
                 color: Color.popups.text
                 opacity: 0.72
@@ -69,16 +76,6 @@ Item {
                 font.pixelSize: Style.font.bodySmall
                 elide: Text.ElideRight
             }
-            Text {
-                width: parent.width
-                text: root.plan ? ("Workspace " + root.plan.target.workspace.name + " · " + root.plan.target.monitor.connector) : ""
-                color: Color.popups.text
-                opacity: 0.58
-                font.family: Style.font.family
-                font.pixelSize: Style.font.caption
-                elide: Text.ElideRight
-            }
-
             Row {
                 width: parent.width
                 spacing: Style.spacing.sm
@@ -86,12 +83,10 @@ Item {
                     width: parent.width - restoreButton.width - parent.spacing
                     text: root.plan
                         ? (root.expired
-                           ? "Preview expired. Press Use again."
-                           : (root.plan.warnings && root.plan.warnings.length)
-                           ? root.plan.warnings[0].message
-                           : "Ready to restore in an empty workspace.")
+                           ? "Preview expired. Open it again."
+                           : root.warningText())
                         : ""
-                    color: root.expired || (root.plan && root.plan.warnings && root.plan.warnings.length)
+                    color: root.expired || root.warningText().length
                         ? Color.accent : Color.popups.text
                     opacity: 0.78
                     wrapMode: Text.WordWrap
