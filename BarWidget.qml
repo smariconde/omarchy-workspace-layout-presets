@@ -6,7 +6,7 @@ import qs.Ui
 // positioned and focused like every other Omarchy shell popup.
 BarWidget {
     id: root
-    moduleName: "santiago.workspace-layout-presets"
+    moduleName: "io.github.smariconde.workspace-layout-presets"
 
     readonly property bool opened: panelLoader.item ? panelLoader.item.opened === true : false
     // Keep the host bar's open-panel mark aligned with the glyph's optically
@@ -31,6 +31,8 @@ BarWidget {
         if ("settings" in target) target.settings = root.settings
         if ("anchorItem" in target) target.anchorItem = button
         if ("hostWidget" in target) target.hostWidget = root
+        if ("pluginVersion" in target && root.manifest && root.manifest.version)
+            target.pluginVersion = root.manifest.version
     }
 
     Loader {

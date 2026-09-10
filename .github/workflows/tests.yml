@@ -3,13 +3,27 @@ name: Tests
 on:
   push:
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python-version }}
       - run: python -m unittest discover -v
+      - name: Verify tag matches manifest version
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: python -c 'import json, os; version = json.load(open("manifest.json", encoding="utf-8"))["version"]; assert os.environ["RELEASE_TAG"] == "v" + version, "tag and manifest version differ"'

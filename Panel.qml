@@ -6,8 +6,8 @@ import "qml" as Plugin
 
 Ui.Panel {
     id: root
-    moduleName: "santiago.workspace-layout-presets"
-    ipcTarget: "santiago.workspace-layout-presets"
+    moduleName: "io.github.smariconde.workspace-layout-presets"
+    ipcTarget: "io.github.smariconde.workspace-layout-presets"
     manageIpc: false
 
     property var anchorItem: null
@@ -25,6 +25,7 @@ Ui.Panel {
     property string statusText: ""
     property string statusKind: "neutral"
     property bool preserveFeedbackOnList: false
+    property string pluginVersion: ""
 
     readonly property int panelWidth: Style.space(380)
     readonly property color secondaryText: Util.alpha(Color.popups.text, 0.72)
@@ -441,6 +442,11 @@ Ui.Panel {
                         horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap
                         font.family: Style.font.family; font.pixelSize: Style.font.bodySmall
                         maximumLineCount: 2; elide: Text.ElideRight }
+
+                    Text { width: parent.width; visible: root.pluginVersion.length > 0
+                        text: "Version " + root.pluginVersion; textFormat: Text.PlainText
+                        color: root.mutedText; horizontalAlignment: Text.AlignHCenter
+                        font.family: Style.font.family; font.pixelSize: Style.font.caption }
                 }
             }
         }

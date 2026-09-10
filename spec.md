@@ -1,8 +1,8 @@
 # Omarchy Workspace Layout Presets — Product & Technical Spec
 
-**Status:** Draft for implementation  
+**Status:** Release candidate 0.1.0
 **Target:** Omarchy 4.x / Hyprland 0.56+ / default `dwindle` layout  
-**Plugin id:** `santiago.workspace-layout-presets` (provisional; reserve before publishing)  
+**Plugin id:** `io.github.smariconde.workspace-layout-presets`
 **Scope decision:** one saved profile represents **one workspace only**.
 
 ## 1. Product statement

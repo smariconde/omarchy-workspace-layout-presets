@@ -1,0 +1,63 @@
+name: Bug report
+description: Report reproducible incorrect or unsafe behavior
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not report vulnerabilities here. Use the private process in SECURITY.md.
+        Remove usernames, paths, window titles, URLs, credentials, and private profile data.
+  - type: input
+    id: plugin-version
+    attributes:
+      label: Plugin version
+      description: Shown at the bottom of the plugin panel and in manifest.json.
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: input
+    id: omarchy-version
+    attributes:
+      label: Omarchy version
+      placeholder: 4.0.2
+    validations:
+      required: true
+  - type: input
+    id: hyprland-version
+    attributes:
+      label: Hyprland version
+      placeholder: 0.56.2
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe the result without including sensitive workspace data.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      placeholder: |
+        1. Open an empty regular workspace
+        2. Select a preset
+        3. Choose Restore…
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed credentials, URLs, window titles, private paths, and other sensitive data.
+          required: true
+

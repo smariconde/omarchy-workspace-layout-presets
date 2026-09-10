@@ -1,6 +1,6 @@
 # Hoja de ruta de desarrollo
 
-**Estado:** M6 implementado · próxima sesión: replay end-to-end en sesión Omarchy
+**Estado:** candidato `v0.1.0` preparado · próxima sesión: tag y envío al marketplace
 **Objetivo:** una primera beta de perfiles de layout para un workspace
 `dwindle` en Omarchy 4.x.
 
@@ -26,9 +26,9 @@ contrato, registrarla primero en la arquitectura; no esconderla en código.
 | Captura y lanzadores | Hecho | fixtures anonimizadas, resolución `.desktop` y revisión segura de webapps ambiguas |
 | Inferencia Dwindle | Hecho | inferencia pura de particiones slicing y fallback explícito |
 | Planificación | Hecho | `plan` de sólo lectura, bloqueos explícitos y token de un solo uso |
-| Restauración | En curso | revalidación, atestación efímera, executor argv y verificación conectados; falta la prueba end-to-end del replay |
+| Restauración | Hecho | replay end-to-end confirmado por el mantenedor en una sesión Omarchy real |
 | Interfaz | Hecho para beta funcional | menú desplegable, captura, gestión, preview y confirmaciones conectadas al CLI |
-| Validación en Omarchy | Pendiente | aún no ejecutada |
+| Validación en Omarchy | Hecho para beta | flujo live confirmado; `omarchy plugin validate .` pasa en Omarchy 4.0.2 |
 
 La suite actual se ejecuta con `python -m unittest discover -v`.
 
@@ -41,9 +41,9 @@ La suite actual se ejecuta con `python -m unittest discover -v`.
 | M2 | Captura segura | M1 | Fixtures de Hyprland → perfil válido, sin datos sensibles ni comandos de shell | Hecho |
 | M3 | Inferencia Dwindle | M2 | Árbol exacto para geometrías soportadas; `fallback` explícito para las demás | Hecho |
 | M4 | Plan de restauración | M1–M3 | `plan` es de sólo lectura y bloquea invariablemente workspaces no vacíos | Hecho |
-| M5 | Restauración controlada | M4 | Ejecuta sólo un plan aprobado, verifica el resultado y nunca cierra ventanas | En curso |
+| M5 | Restauración controlada | M4 | Ejecuta sólo un plan aprobado, verifica el resultado y nunca cierra ventanas | Hecho |
 | M6 | Interfaz V1 | M0, M1, M4, M5 | Guardar, gestionar, previsualizar y restaurar desde el widget accesible | Hecho |
-| M7 | Hardening y beta | M0–M6 | Suite, validación del plugin, matriz manual y documentación de límites completas | Pendiente |
+| M7 | Hardening y beta | M0–M6 | Suite, validación del plugin, matriz manual y documentación de límites completas | En curso: candidato preparado |
 
 ## Próximas sesiones
 
@@ -145,7 +145,7 @@ bloqueado no emite token y ninguna consulta modifica Hyprland.
 contra un Hyprland real: el workspace activo ocupado responde `blocked` con
 `workspace_not_empty` sin escribir ningún plan.
 
-### M5 — Restauración controlada — En curso
+### M5 — Restauración controlada — Hecho
 
 - [x] Comprobar el contrato del guardián de compatibilidad de `spec.md` §6.3:
   versión mínima, layout activo y evidencia separada para el puente Lua.
@@ -174,7 +174,7 @@ contra un Hyprland real: el workspace activo ocupado responde `blocked` con
   parcial sin cerrar ni mover ninguna ventana.
 - [x] Conectar el probe QML a una atestación efímera de runtime y exigirla
   durante `layoutctl restore`.
-- [ ] Probar el executor real en un workspace descartable con la atestación
+- [x] Probar el executor real en un workspace descartable con la atestación
   verificada y revisar la identificación de ventanas repetidas.
 
 **Cierre:** `restore` ejecuta exclusivamente un plan aprobado y vigente, o
@@ -203,7 +203,9 @@ launchers ahora se crean sin espera, con `shell=False`, descriptores cerrados y
 una sesión independiente, mientras el executor sigue detectando la ventana por
 la nueva dirección de Hyprland con un plazo independiente de 30 segundos para
 aplicaciones lentas.
-Queda pendiente la prueba end-to-end del replay controlado.
+El mantenedor confirmó el flujo end-to-end en su máquina Omarchy, incluido el
+replay controlado desde la interfaz. Con esa evidencia se cierra M5; cada nueva
+release debe repetir la matriz de compatibilidad de `spec.md`.
 
 ### M6 — Interfaz V1 — Hecho
 
@@ -235,14 +237,29 @@ válidos sin permitir traversal. Las capturas inequívocas conservan el guardado
 directo sin un paso adicional.
 
 **Nota de validación:** `omarchy plugin validate .` pasa en este entorno;
-`qmllint` no está instalado y las pruebas QML con Wayland quedan para la matriz
-manual de M7.
+`qmllint` no está instalado. El mantenedor confirmó el flujo QML live en
+Omarchy 4.0.2 con Quickshell 0.3.1.
+
+### M7 — Hardening y beta — En curso
+
+- [x] Ejecutar la suite completa y validar el manifest en Omarchy.
+- [x] Confirmar el flujo end-to-end en una sesión real.
+- [x] Fijar el ID público `io.github.smariconde.workspace-layout-presets`.
+- [x] Documentar instalación, uso, desinstalación, dependencias y límites.
+- [x] Añadir SemVer, changelog, política de releases y versión visible en UI.
+- [x] Añadir guía de contribución, reporte privado de seguridad y templates.
+- [x] Añadir una portada compatible con el marketplace.
+- [ ] Crear el commit y tag `v0.1.0`, publicar la GitHub Release y enviar el
+  repositorio al marketplace.
+
+**Cierre:** el tag publicado coincide con `manifest.json`, la release contiene
+las notas de `CHANGELOG.md` y el marketplace acepta el commit validado.
 
 ## Secuencia posterior
 
-1. M5: restaurar tiled y floating con verificación.
-2. M6: construir la UI sólo sobre las operaciones ya probadas.
-3. M7: endurecer, probar en máquinas reales y publicar la beta.
+1. Revisar y commitear el candidato `v0.1.0`.
+2. Crear el tag y la GitHub Release siguiendo `docs/releasing.md`.
+3. Enviar el commit exacto al Omarchy Plugin Marketplace.
 
 ## Cierre de cada sesión
 

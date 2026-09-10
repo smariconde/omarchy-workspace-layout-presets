@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-An Omarchy 4.x / Quickshell bar widget (plugin id `santiago.workspace-layout-presets`) that saves the arrangement of **one** Hyprland `dwindle` workspace as a named profile and restores it only into an empty active workspace. It is not a session manager.
+An Omarchy 4.x / Quickshell bar widget (plugin id `io.github.smariconde.workspace-layout-presets`) that saves the arrangement of **one** Hyprland `dwindle` workspace as a named profile and restores it only into an empty active workspace. It is not a session manager.
 
 ## Commands
 
