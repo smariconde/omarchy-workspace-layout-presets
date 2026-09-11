@@ -106,6 +106,7 @@ Run the test suite and manifest validation from the repository root:
 
 ```sh
 python -m unittest discover -v
+python tools/check_release_payload.py
 omarchy plugin validate .
 ```
 
@@ -133,6 +134,7 @@ Released under the [MIT License](LICENSE).
 
 ## Project documentation
 
+- [Repository guide](docs/repository-guide.md)
 - [Product and technical specification](spec.md)
 - [Architecture and contracts](docs/architecture.md)
 - [Development roadmap](docs/development-plan.md)
