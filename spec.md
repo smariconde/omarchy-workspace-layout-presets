@@ -96,6 +96,13 @@ The plugin must declare an Omarchy `bar-widget` and appear in the right bar
 section by default. The widget opens a keyboard-accessible panel containing
 save, list, preview, restore, rename, duplicate and delete actions.
 
+Selecting a preset must show, beside the list of application names, a wordless
+sketch of the saved arrangement: one cell per window at the recorded
+proportions, shaped like the monitor it was captured on. The sketch answers
+"how would my screen look?" without labels, measurements or percentages. When a
+profile's geometry could not be inferred exactly, the sketch must present
+itself as approximate rather than imply a shape it never measured.
+
 ### FR-2 — Capture current workspace
 
 Capture the active workspace through `hyprctl -j activeworkspace`, `hyprctl -j

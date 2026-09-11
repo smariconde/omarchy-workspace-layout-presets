@@ -11,9 +11,10 @@ CLI contracts. Small fixes can go directly to a pull request.
 Read these documents in order:
 
 1. `README.md`
-2. `spec.md`
-3. `docs/architecture.md`
-4. `docs/development-plan.md`
+2. `docs/repository-guide.md`
+3. `spec.md`
+4. `docs/architecture.md`
+5. `docs/development-plan.md`
 
 ## Scope and safety
 
@@ -33,6 +34,21 @@ Every contribution must preserve these rules:
 
 Changes outside these boundaries require an explicit design decision before
 implementation.
+
+## What may ship in the repository
+
+Installing the plugin clones this repository into the Omarchy plugin
+directory, so every tracked file is delivered to end users. Files that
+configure a coding assistant must therefore stay untracked: inside an
+installed plugin they become an instruction channel in someone else's
+environment, and the Omarchy Plugin Marketplace rejects payloads that carry
+one.
+
+`tools/check_release_payload.py` enforces this recursively over the tracked
+tree and runs in the test suite and in CI. `.gitignore` already covers the
+common names, so a local, untracked assistant configuration is fine. Put
+contributor documentation in a neutrally named file instead: this document,
+`docs/repository-guide.md`, or anything else under `docs/`.
 
 ## Development workflow
 

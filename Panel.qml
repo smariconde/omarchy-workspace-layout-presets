@@ -17,6 +17,7 @@ Ui.Panel {
     property string selectedProfile: ""
     property var selectedProfileData: null
     property var selectedProfileDetails: []
+    property var selectedProfileLayout: null
     property var planData: null
     property var captureReview: null
     property var captureAssignments: ({})
@@ -88,7 +89,7 @@ Ui.Panel {
     }
     function clearSelection() {
         selectedProfile = ""; selectedProfileData = null; selectedProfileDetails = []
-        planData = null; confirmDelete = false
+        selectedProfileLayout = null; planData = null; confirmDelete = false
     }
     function runAction(action, text) {
         if (!action()) setStatus("neutral", "Please wait.")
@@ -97,7 +98,7 @@ Ui.Panel {
     function choose(profileId) {
         if (client.running) return
         selectedProfile = profileId; selectedProfileData = null; selectedProfileDetails = []
-        planData = null; confirmDelete = false
+        selectedProfileLayout = null; planData = null; confirmDelete = false
         runAction(function() { return client.showProfile(profileId) }, "Loading preset…")
     }
     function cancelCaptureReview() {
@@ -167,6 +168,7 @@ Ui.Panel {
                 if (operation === "profile-show") {
                     root.selectedProfileData = response.data.profile
                     root.selectedProfileDetails = response.data.details || []
+                    root.selectedProfileLayout = response.data.layout || null
                     root.setStatus("neutral", "")
                 }
                 if (operation === "plan") {
@@ -374,17 +376,23 @@ Ui.Panel {
                                         color: root.secondaryText; font.family: Style.font.family
                                         font.pixelSize: Style.font.caption }
                                 }
-                                ListView { width: parent.width; height: root.detailsListHeight; clip: true
-                                    spacing: Style.spacing.xxs; model: root.selectedProfileDetails
-                                    boundsBehavior: Flickable.StopAtBounds
-                                    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
-                                    delegate: Text { required property var modelData
-                                        width: parent.width; height: root.detailRowHeight
-                                        text: { let metadata = modelData.metadata; return metadata && metadata.displayName
-                                                ? metadata.displayName : "Unavailable app" }
-                                        textFormat: Text.PlainText; color: root.secondaryText
-                                        font.family: Style.font.family; font.pixelSize: Style.font.bodySmall
-                                        verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight }
+                                Row { width: parent.width; spacing: Style.spacing.controlGap
+                                    height: Math.max(root.detailsListHeight, layoutMap.height)
+                                    ListView { clip: true; height: root.detailsListHeight
+                                        width: parent.width - (layoutMap.visible ? layoutMap.width + parent.spacing : 0)
+                                        spacing: Style.spacing.xxs; model: root.selectedProfileDetails
+                                        boundsBehavior: Flickable.StopAtBounds
+                                        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+                                        delegate: Text { required property var modelData
+                                            width: parent.width; height: root.detailRowHeight
+                                            text: { let metadata = modelData.metadata; return metadata && metadata.displayName
+                                                    ? metadata.displayName : "Unavailable app" }
+                                            textFormat: Text.PlainText; color: root.secondaryText
+                                            font.family: Style.font.family; font.pixelSize: Style.font.bodySmall
+                                            verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight }
+                                    }
+                                    Plugin.LayoutMap { id: layoutMap; width: Style.space(132)
+                                        layout: root.selectedProfileLayout }
                                 }
                             }
                         }

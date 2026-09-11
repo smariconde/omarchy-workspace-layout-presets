@@ -10,3 +10,18 @@ build/
 dist/
 *.qmlc
 
+# Coding-assistant configuration. Installing the plugin clones this repository,
+# so anything tracked here ships to end users; keep these local and untracked.
+# tools/check_release_payload.py fails the build if one is ever committed.
+AGENTS.md
+AGENT.md
+CLAUDE.md
+GEMINI.md
+.claude/
+.cursor/
+.cursorrules
+.windsurfrules
+.clinerules
+.aider*
+.mcp.json
+

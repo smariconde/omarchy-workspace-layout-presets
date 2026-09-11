@@ -77,6 +77,39 @@ class UserInterfaceLanguageTests(unittest.TestCase):
         self.assertNotIn('root.plan.target.monitor.connector', source)
         self.assertNotIn('root.plan.warnings[0].message', source)
 
+    def test_the_layout_sketch_sits_beside_the_application_names(self) -> None:
+        source = (Path(__file__).resolve().parent.parent / "Panel.qml").read_text(encoding="utf-8")
+
+        self.assertIn("Plugin.LayoutMap { id: layoutMap", source)
+        self.assertIn("layout: root.selectedProfileLayout", source)
+        self.assertIn("root.selectedProfileLayout = response.data.layout", source)
+        details = source.index("id: detailsSurface")
+        self.assertLess(details, source.index("Plugin.LayoutMap"))
+        self.assertLess(source.index("Plugin.LayoutMap"), source.index('text: "Restore…"'))
+
+    def test_the_layout_sketch_shows_shape_only_and_never_numbers_or_app_names(self) -> None:
+        source = (Path(__file__).resolve().parent.parent / "qml" / "LayoutMap.qml").read_text(encoding="utf-8")
+
+        self.assertNotIn("%", source)
+        for identity in ("wmClass", "displayName", "desktopId", "metadata", "ordinal"):
+            with self.subTest(identity=identity):
+                self.assertNotIn(identity, source)
+        # The only words on the sketch warn that the shape was never measured.
+        self.assertEqual(source.count("text:"), 1)
+        self.assertIn('text: "Approximate layout."', source)
+
+    def test_the_layout_sketch_reads_its_own_mode_not_stored_profile_metadata(self) -> None:
+        root = Path(__file__).resolve().parent.parent
+        panel = (root / "Panel.qml").read_text(encoding="utf-8")
+        sketch = (root / "qml" / "LayoutMap.qml").read_text(encoding="utf-8")
+
+        self.assertIn('layout.mode === "approximate"', sketch)
+        self.assertNotIn("layoutConfidence", sketch + panel)
+        # Rectangles arrive resolved; the sketch must not replay the split tree.
+        for geometry_source in (".splits", ".anchor", '"ratio"', "direction"):
+            with self.subTest(geometry_source=geometry_source):
+                self.assertNotIn(geometry_source, sketch)
+
     def test_backend_codes_are_translated_to_plain_language(self) -> None:
         source = (Path(__file__).resolve().parent.parent / "Panel.qml").read_text(encoding="utf-8")
 

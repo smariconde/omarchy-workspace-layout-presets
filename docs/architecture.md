@@ -7,6 +7,7 @@
 ├── Panel.qml                 # Accessible panel flow and notifications
 ├── qml/
 │   ├── ProfileList.qml       # List, inspect, rename, duplicate, delete
+│   ├── LayoutMap.qml         # Wordless proportional sketch of a saved layout
 │   ├── RestorePreview.qml    # Read-only launch/skip/warning/blocked plan
 │   └── ConfirmDialog.qml     # Required destructive-action confirmation
 ├── backend/
@@ -15,6 +16,7 @@
 │   ├── capture_review.py     # ambiguous browser/webapp review and commit
 │   ├── capture_store.py      # private five-minute capture-review tokens
 │   ├── infer_dwindle.py      # Rectangle-to-binary-tree inference
+│   ├── layout_preview.py     # Pure split-tree-to-rectangle expansion
 │   ├── launchers.py          # Desktop-entry-only launch resolution
 │   ├── restore.py            # Plan, guarded replay, verification
 │   ├── plan_store.py         # Single-use approval tokens for a planned restore
@@ -23,6 +25,7 @@
 ├── tests/
 │   ├── fixtures/             # Captured Hyprland and profile JSON fixtures
 │   ├── test_infer_dwindle.py
+│   ├── test_layout_preview.py
 │   ├── test_profile_store.py
 │   ├── test_plan_store.py
 │   └── test_restore_plan.py
@@ -136,6 +139,41 @@ export crean archivos privados con escritura atómica sin sobrescritura; si el
 destino ya existe responden `blocked` con `already_exists`. Import deriva el
 ID del nombre base seguro del archivo elegido por la persona usuaria y bloquea
 cualquier colisión.
+
+### Boceto del layout en `profile show`
+
+`layout_preview.py` es el único dueño de la expansión inversa a la inferencia
+Dwindle: dado un ancla y una secuencia de splits validada, devuelve un
+rectángulo normalizado por nodo. Es puro, sin I/O ni llamadas a Hyprland, y
+`restore.py` lo reutiliza para reconstruir la geometría esperada al verificar
+un replay. Existe un solo lugar donde vive la semántica del ratio, de modo que
+lo que dibuja la interfaz y lo que verifica la restauración no puedan divergir.
+
+`profile show` añade a su respuesta un objeto `layout` junto a `profile` y
+`details`. Es un campo aditivo: `contractVersion` sigue en 1.
+
+```json
+"layout": {
+  "mode": "exact | approximate",
+  "aspect": {"width": 2560, "height": 1392},
+  "windows": [
+    {"id": "window-1", "placement": "tiled", "x": 0.0, "y": 0.0, "width": 0.5, "height": 1.0}
+  ]
+}
+```
+
+`mode` refleja `layoutConfidence`. Con `exact` los rectángulos provienen de los
+splits medidos. Con `approximate` los splits guardados son una cadena sintética
+que no representa geometría observada, así que el backend no los expande y
+emite en su lugar una grilla de celdas iguales; la interfaz debe presentarla
+como aproximada y nunca como la disposición real. `aspect` es el rectángulo
+útil del monitor de origen, para que el boceto conserve la forma de la
+pantalla. Las ventanas floating se emiten después de las tiled, con la
+geometría normalizada que ya guarda el perfil, y se dibujan encima.
+
+El objeto describe proporciones, no contenido: no lleva nombres de aplicación,
+clases, rutas ni argumentos de lanzamiento. `qml/LayoutMap.qml` sólo pinta esos
+rectángulos y no calcula geometría.
 
 ### Captura segura (M2)
 
