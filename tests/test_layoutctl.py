@@ -152,7 +152,15 @@ class LayoutctlContractTests(unittest.TestCase):
             patch.object(layoutctl, "import_profile", return_value=("imported", profile)),
         ):
             cases = (
-                (["profile", "show", "coding"], {"profileId": "coding", "profile": profile, "details": []}),
+                (
+                    ["profile", "show", "coding"],
+                    {
+                        "profileId": "coding",
+                        "profile": profile,
+                        "details": [],
+                        "layout": {"mode": "approximate", "aspect": {"width": 16, "height": 9}, "windows": []},
+                    },
+                ),
                 (["profile", "rename", "coding", "Writing"], {"profileId": "coding", "profile": profile}),
                 (
                     ["profile", "duplicate", "coding", "coding-copy"],
@@ -185,6 +193,65 @@ class LayoutctlContractTests(unittest.TestCase):
         self.assertEqual(response["data"]["profile"], profile)
         self.assertEqual(response["data"]["details"][0]["metadata"], metadata)
         self.assertNotIn("Exec", response["data"]["details"][0])
+
+    def test_profile_show_sketches_the_layout_without_naming_any_application(self) -> None:
+        profile = {
+            "name": "Coding",
+            "layoutConfidence": "exact",
+            "source": {"monitor": {"connector": "DP-1", "usableWidth": 2560, "usableHeight": 1392}},
+            "tiled": {
+                "anchor": "window-1",
+                "nodes": [
+                    {"id": "window-1", "app": {"desktopId": "code", "wmClass": "Code", "ordinal": 1}},
+                    {"id": "window-2", "app": {"desktopId": "term", "wmClass": "Term", "ordinal": 1}},
+                ],
+                "splits": [{"focus": "window-1", "direction": "right", "new": "window-2", "ratio": 0.35}],
+            },
+            "floating": [],
+        }
+        with (
+            patch.object(layoutctl, "read_profile", return_value=profile),
+            patch.object(layoutctl, "desktop_entry_metadata", return_value=None),
+        ):
+            exit_code, response = layoutctl.execute(["profile", "show", "coding"])
+
+        self.assertEqual(exit_code, layoutctl.EXIT_OK)
+        layout = response["data"]["layout"]
+        self.assertEqual(layout["mode"], "exact")
+        self.assertEqual(layout["aspect"], {"width": 2560, "height": 1392})
+        self.assertEqual(
+            layout["windows"],
+            [
+                {"id": "window-1", "placement": "tiled", "x": 0.0, "y": 0.0, "width": 0.65, "height": 1.0},
+                {"id": "window-2", "placement": "tiled", "x": 0.65, "y": 0.0, "width": 0.35, "height": 1.0},
+            ],
+        )
+        for window in layout["windows"]:
+            self.assertNotIn("wmClass", window)
+
+    def test_profile_show_marks_an_uninferable_layout_as_approximate(self) -> None:
+        profile = {
+            "name": "Coding",
+            "layoutConfidence": "fallback",
+            "source": {"monitor": {"usableWidth": 1920, "usableHeight": 1080}},
+            "tiled": {
+                "anchor": "window-1",
+                "nodes": [
+                    {"id": "window-1", "app": {"desktopId": None, "wmClass": "Code", "ordinal": 1}},
+                    {"id": "window-2", "app": {"desktopId": None, "wmClass": "Term", "ordinal": 1}},
+                ],
+                "splits": [{"focus": "window-1", "direction": "right", "new": "window-2", "ratio": 0.5}],
+            },
+            "floating": [],
+        }
+        with (
+            patch.object(layoutctl, "read_profile", return_value=profile),
+            patch.object(layoutctl, "desktop_entry_metadata", return_value=None),
+        ):
+            exit_code, response = layoutctl.execute(["profile", "show", "coding"])
+
+        self.assertEqual(exit_code, layoutctl.EXIT_OK)
+        self.assertEqual(response["data"]["layout"]["mode"], "approximate")
 
     def test_delete_requires_confirmation_before_the_store_is_called(self) -> None:
         with patch.object(layoutctl, "delete_profile") as delete:

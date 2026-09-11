@@ -21,6 +21,7 @@ import time
 from typing import Any, Callable, Mapping, Protocol
 
 from .capture import CaptureError, HyprctlReader, SystemHyprctlReader, usable_workspace_rectangle
+from .layout_preview import expand_layout
 from .plan_store import PlanStoreError, consume_plan, issue_plan, profile_digest, read_plan
 from .profile_store import ProfileError, read_profile, validate_profile
 
@@ -239,43 +240,19 @@ def _expected_tiled_rectangles(plan: Mapping[str, Any]) -> dict[str, tuple[float
     """Rebuild normalized leaf rectangles from the approved split sequence."""
     if plan.get("layoutMode") != "tree":
         return {}
-    rectangles: dict[str, tuple[float, float, float, float]] = {}
-    for step in plan.get("steps", []):
+    steps = plan.get("steps")
+    if not isinstance(steps, list) or not steps:
+        return {}
+    anchor: Any = None
+    splits: list[Any] = []
+    for step in steps:
         if not isinstance(step, Mapping):
             return {}
-        operation = step.get("op")
-        if operation == "anchor":
-            window_id = step.get("windowId")
-            if not isinstance(window_id, str):
-                return {}
-            rectangles[window_id] = (0.0, 0.0, 1.0, 1.0)
-        elif operation == "split":
-            focus, new = step.get("focus"), step.get("new")
-            direction, ratio = step.get("direction"), step.get("ratio")
-            if (
-                not isinstance(focus, str)
-                or not isinstance(new, str)
-                or direction not in {"left", "right", "up", "down"}
-                or isinstance(ratio, bool)
-                or not isinstance(ratio, (int, float))
-                or focus not in rectangles
-            ):
-                return {}
-            x, y, width, height = rectangles[focus]
-            fraction = float(ratio)
-            if direction == "right":
-                rectangles[focus] = (x, y, width * (1 - fraction), height)
-                rectangles[new] = (x + width * (1 - fraction), y, width * fraction, height)
-            elif direction == "left":
-                rectangles[focus] = (x + width * fraction, y, width * (1 - fraction), height)
-                rectangles[new] = (x, y, width * fraction, height)
-            elif direction == "down":
-                rectangles[focus] = (x, y, width, height * (1 - fraction))
-                rectangles[new] = (x, y + height * (1 - fraction), width, height * fraction)
-            else:
-                rectangles[focus] = (x, y + height * fraction, width, height * (1 - fraction))
-                rectangles[new] = (x, y, width, height * fraction)
-    return rectangles
+        if step.get("op") == "anchor":
+            anchor = step.get("windowId")
+        elif step.get("op") == "split":
+            splits.append(step)
+    return expand_layout(anchor, splits)
 
 
 def _count_geometry_mismatches(

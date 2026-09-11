@@ -44,6 +44,7 @@ La suite actual se ejecuta con `python -m unittest discover -v`.
 | M5 | Restauración controlada | M4 | Ejecuta sólo un plan aprobado, verifica el resultado y nunca cierra ventanas | Hecho |
 | M6 | Interfaz V1 | M0, M1, M4, M5 | Guardar, gestionar, previsualizar y restaurar desde el widget accesible | Hecho |
 | M7 | Hardening y beta | M0–M6 | Suite, validación del plugin, matriz manual y documentación de límites completas | En curso: candidato preparado |
+| M8 | Boceto del layout en el panel | M1, M3, M6 | Al seleccionar un preset se ve su disposición a escala, sin texto ni porcentajes | Hecho |
 
 ## Próximas sesiones
 
@@ -254,6 +255,22 @@ Omarchy 4.0.2 con Quickshell 0.3.1.
 
 **Cierre:** el tag publicado coincide con `manifest.json`, la release contiene
 las notas de `CHANGELOG.md` y el marketplace acepta el commit validado.
+
+### M8 — Boceto del layout en el panel — Hecho
+
+- [x] Extraer la expansión «árbol de splits → rectángulos» a `layout_preview.py`
+  y reutilizarla desde `restore.py`, para que exista una sola semántica del
+  ratio.
+- [x] Añadir el campo aditivo `layout` a `profile show`, con modo `exact` o
+  `approximate` y la relación de aspecto del monitor de origen.
+- [x] Dibujar `qml/LayoutMap.qml` junto a la lista de nombres, sin etiquetas ni
+  porcentajes.
+- [x] Cubrir la expansión, el contrato y las invariantes de interfaz con
+  pruebas.
+- [x] Verificar en una sesión real de Omarchy con perfiles guardados.
+
+**Cierre:** al seleccionar un preset, el panel muestra su disposición a escala
+y un perfil `fallback` se presenta como aproximado.
 
 ## Secuencia posterior
 

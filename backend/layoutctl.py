@@ -25,6 +25,7 @@ from backend.capture_review import commit_capture, prepare_capture
 from backend.capture_store import CaptureStoreError
 from backend.bridge_attestation import AttestationError, read_attestation, validate_attestation
 from backend.launchers import desktop_entry_command, desktop_entry_metadata
+from backend.layout_preview import profile_layout
 from backend.profile_store import (
     ProfileAlreadyExistsError,
     ProfileError,
@@ -265,7 +266,14 @@ def execute(
                                 "metadata": metadata,
                             }
                         )
-                return EXIT_OK, result_ok({"profileId": args.profile_id, "profile": profile, "details": details})
+                return EXIT_OK, result_ok(
+                    {
+                        "profileId": args.profile_id,
+                        "profile": profile,
+                        "details": details,
+                        "layout": profile_layout(profile),
+                    }
+                )
             if args.profile_action == "rename":
                 profile = rename_profile(args.profile_id, args.name)
                 return EXIT_OK, result_ok({"profileId": args.profile_id, "profile": profile})
