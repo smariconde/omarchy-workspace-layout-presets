@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.smariconde.workspace-layout-presets",
   "name": "Workspace Layout Presets",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": "Santiago",
   "license": "MIT",
   "description": "Save and safely restore one empty Omarchy workspace layout at a time.",

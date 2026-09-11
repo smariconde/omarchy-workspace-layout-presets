@@ -1,8 +1,21 @@
 # Omarchy Plugin Marketplace submission
 
-Use this draft only after `v0.1.0` has been committed, tagged, pushed, and
+Use this draft only after the release has been committed, tagged, pushed, and
 published as a GitHub Release. The repository owner must personally confirm
 every checklist statement before opening the issue.
+
+## Re-verifying a new commit
+
+The initial listing review raised a blocker on commit `c59ce43`: the
+installable root contained `AGENTS.md` and `CLAUDE.md`, which are agent-control
+instruction channels inside the installed plugin scope. Both were untracked in
+`v0.2.0`; their documentation now lives in `docs/repository-guide.md` and
+`CONTRIBUTING.md`, and `tools/check_release_payload.py` fails the suite and CI
+if any assistant instruction file reappears anywhere in the tracked tree.
+
+After pushing a new release, use the marketplace verification form to request
+validation and the security baseline for the exact new default-branch HEAD.
+State the commit SHA explicitly; the review pins one commit, not a branch name.
 
 ## Listing metadata
 
@@ -43,8 +56,10 @@ It has no autostart, automatic restore, shell command profiles, network access,
 install hooks, privileges, or third-party runtime dependencies.
 
 Tested live on Omarchy 4.0.2 with Quickshell 0.3.1 and Hyprland 0.56.2. The
-repository includes 122 automated tests, a documented security boundary, and
-a read-only preview plus fresh compatibility checks before every restore.
+repository includes 145 automated tests, a documented security boundary, and
+a read-only preview plus fresh compatibility checks before every restore. The
+installable tree carries no coding-assistant instruction files, and a
+recursive guard in the test suite and CI keeps it that way.
 
 ### Submission checklist
 

@@ -43,7 +43,7 @@ La suite actual se ejecuta con `python -m unittest discover -v`.
 | M4 | Plan de restauración | M1–M3 | `plan` es de sólo lectura y bloquea invariablemente workspaces no vacíos | Hecho |
 | M5 | Restauración controlada | M4 | Ejecuta sólo un plan aprobado, verifica el resultado y nunca cierra ventanas | Hecho |
 | M6 | Interfaz V1 | M0, M1, M4, M5 | Guardar, gestionar, previsualizar y restaurar desde el widget accesible | Hecho |
-| M7 | Hardening y beta | M0–M6 | Suite, validación del plugin, matriz manual y documentación de límites completas | En curso: candidato preparado |
+| M7 | Hardening y beta | M0–M6 | Suite, validación del plugin, matriz manual y documentación de límites completas | En curso: revisión del marketplace |
 | M8 | Boceto del layout en el panel | M1, M3, M6 | Al seleccionar un preset se ve su disposición a escala, sin texto ni porcentajes | Hecho |
 
 ## Próximas sesiones
@@ -250,8 +250,15 @@ Omarchy 4.0.2 con Quickshell 0.3.1.
 - [x] Añadir SemVer, changelog, política de releases y versión visible en UI.
 - [x] Añadir guía de contribución, reporte privado de seguridad y templates.
 - [x] Añadir una portada compatible con el marketplace.
-- [ ] Crear el commit y tag `v0.1.0`, publicar la GitHub Release y enviar el
+- [x] Crear el commit y tag `v0.1.0`, publicar la GitHub Release y enviar el
   repositorio al marketplace.
+- [x] Sacar del árbol instalable los ficheros de instrucciones para asistentes
+  (`AGENTS.md`, `CLAUDE.md`), trasladar su documentación a nombres neutros y
+  añadir `tools/check_release_payload.py` como guarda recursiva en la suite y
+  en CI. Bloqueo de seguridad señalado por la revisión del marketplace sobre
+  el commit `c59ce43`.
+- [ ] Publicar `v0.2.0` y pedir validación y línea base de seguridad para el
+  nuevo HEAD exacto de la rama por defecto.
 
 **Cierre:** el tag publicado coincide con `manifest.json`, la release contiene
 las notas de `CHANGELOG.md` y el marketplace acepta el commit validado.
@@ -274,9 +281,9 @@ y un perfil `fallback` se presenta como aproximado.
 
 ## Secuencia posterior
 
-1. Revisar y commitear el candidato `v0.1.0`.
-2. Crear el tag y la GitHub Release siguiendo `docs/releasing.md`.
-3. Enviar el commit exacto al Omarchy Plugin Marketplace.
+1. Crear el tag `v0.2.0` y la GitHub Release siguiendo `docs/releasing.md`.
+2. Pedir al marketplace validación y línea base de seguridad para el nuevo
+   commit exacto de `main`.
 
 ## Cierre de cada sesión
 
